@@ -26,10 +26,7 @@ body {
 .game-container {
     display: flex;
     gap: 24px;
-    /* Убираем перенос на новую строку */
-    flex-wrap: nowrap;
-    /* Выравнивание по левому краю */
-    justify-content: flex-start;
+    
     align-items: flex-start;
     /* Если экран слишком узкий — появится горизонтальная прокрутка */
     overflow-x: auto;
@@ -52,6 +49,10 @@ body {
 .canvas-area {
     flex: 1;
     min-width: 0; /* важно для корректного сжатия при необходимости */
+    /* Убираем перенос на новую строку */
+    flex-wrap: nowrap;
+    /* Выравнивание по левому краю */
+    justify-content: flex-start;
 }
 
 /* Карточки игроков */
