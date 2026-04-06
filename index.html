@@ -9,13 +9,14 @@
 <body>
 <div class="game-wrapper">
     <div class="game-container">
-        <!-- Панель счёта теперь внутри game-container, слева -->
-        
-        
-        <!-- Область с канвасом и информационной панелью -->
+        <!-- Вся область справа от панели счёта (или с панелью внутри) -->
         <div class="canvas-area">
-            <div class="score-panel" id="sideScorePanel"></div>
-            <canvas id="gameCanvas" width="750" height="500" role="img" aria-label="Игровое поле 39x28 клеток"></canvas>
+            <!-- Верхняя строка: панель счёта + canvas -->
+            <div class="game-top-row">
+                <div class="score-panel" id="sideScorePanel"></div>
+                <canvas id="gameCanvas" width="750" height="500" role="img" aria-label="Игровое поле 39x28 клеток"></canvas>
+            </div>
+            <!-- Информационная панель внизу на всю ширину -->
             <div class="info-panel">
                 <div class="turn-indicator" id="turnText">Игрок 1 (красный)</div>
                 <div class="dice-area" id="diceDisplay">🎲  ?  ?  🎲</div>
