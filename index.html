@@ -339,27 +339,52 @@
             return rectangles.some(r => r.owner === player);
         }
 
-        // Переключение хода с проверкой на поражение
+        // Переключение хода — исправленная версия БЕЗ рекурсии
         function nextTurn() {
-            let next = (currentPlayer % 4) + 1;
-            // Если следующий игрок не имеет территории, пропустить его
-            if (!hasTerritory(next)) {
-                currentMsg = `Игрок ${getPlayerName(next)} не имеет территории и выбывает!`;
-                updateUI();
-                // Пропускаем этого игрока, идём дальше
-                currentPlayer = next;
-                nextTurn(); // рекурсивно ищем следующего живого
-                return;
+            let attempts = 0;                    // защита от бесконечного цикла
+            let next = currentPlayer;
+
+            while (attempts < 5) {               // максимум 4 игрока + 1 страховка
+                attempts++;
+                next = (next % 4) + 1;
+
+                if (hasTerritory(next)) {
+                    // Нашли живого игрока — передаём ему ход
+                    currentPlayer = next;
+                    waitingForRoll = true;
+                    selectionMode = false;
+                    firstCorner = null;
+                    diceN = 0;
+                    diceM = 0;
+                    currentMsg = Игрок ${currentPlayer} (${getPlayerName(currentPlayer)}), бросьте кубики;
+                    updateUI();
+                    drawBoard();
+                    return;
+                } 
+                else {
+                    // Игрок выбывает — показываем сообщение ОДИН раз
+                    currentMsg = ❌ Игрок ${getPlayerName(next)} не имеет территории и выбывает!;
+                    updateUI();
+                    // продолжаем искать дальше (следующий игрок)
+                }
             }
-            currentPlayer = next;
-            waitingForRoll = true;
-            selectionMode = false;
-            firstCorner = null;
-            diceN = 0;
-            diceM = 0;
-            currentMsg = `Игрок ${currentPlayer} (${getPlayerName(currentPlayer)}), бросьте кубики`;
-            updateUI();
-            drawBoard();
+
+            // Если дошли сюда — значит остался только один игрок (или никого)
+            const scores = computeScores();
+            const alivePlayers = [1,2,3,4].filter(p => scores[p] > 0);
+            
+            if (alivePlayers.length === 1) {
+                const winner = alivePlayers[0];
+                currentMsg = 🏆 ПОБЕДА! Игрок ${getPlayerName(winner)} остался единственным на поле! 🏆;
+                updateUI();
+                // Блокируем игру
+                rollBtn.disabled = true;
+                skipBtn.disabled = true;
+                cancelBtn.disabled = true;
+            } else {
+                currentMsg = "😵 Все игроки выбыли — ничья";
+                updateUI();
+            }
         }
 
         function finishMove() {
