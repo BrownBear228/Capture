@@ -339,43 +339,27 @@
             return rectangles.some(r => r.owner === player);
         }
 
+        // Переключение хода с проверкой на поражение
         function nextTurn() {
-            let attempts = 0;
-            let next = currentPlayer;
-
-            while (attempts < 5) {
-                attempts++;
-                next = (next % 4) + 1;
-
-                if (hasTerritory(next)) {
-                    currentPlayer = next;
-                    waitingForRoll = true;
-                    selectionMode = false;
-                    firstCorner = null;
-                    diceN = 0;
-                    diceM = 0;
-                    currentMsg = Игрок ${currentPlayer} (${getPlayerName(currentPlayer)}), бросьте кубики;
-                    updateUI();
-                    drawBoard();
-                    return;
-                } else {
-                    currentMsg = ❌ Игрок ${getPlayerName(next)} не имеет территории и выбывает!;
-                    updateUI();
-                }
+            let next = (currentPlayer % 4) + 1;
+            // Если следующий игрок не имеет территории, пропустить его
+            if (!hasTerritory(next)) {
+                currentMsg = `Игрок ${getPlayerName(next)} не имеет территории и выбывает!`;
+                updateUI();
+                // Пропускаем этого игрока, идём дальше
+                currentPlayer = next;
+                nextTurn(); // рекурсивно ищем следующего живого
+                return;
             }
-
-            // Если все выбыли — конец игры
-            const scores = computeScores();
-            const alive = [1,2,3,4].filter(p => scores[p] > 0);
-            if (alive.length === 1) {
-                currentMsg = 🏆 ПОБЕДА! Игрок ${getPlayerName(alive[0])} остался единственным!;
-            } else {
-                currentMsg = "😵 Все игроки выбыли — ничья";
-            }
+            currentPlayer = next;
+            waitingForRoll = true;
+            selectionMode = false;
+            firstCorner = null;
+            diceN = 0;
+            diceM = 0;
+            currentMsg = `Игрок ${currentPlayer} (${getPlayerName(currentPlayer)}), бросьте кубики`;
             updateUI();
-            rollBtn.disabled = true;
-            skipBtn.disabled = true;
-            cancelBtn.disabled = true;
+            drawBoard();
         }
 
         function finishMove() {
@@ -518,35 +502,21 @@
                 ctx.strokeRect(rect.x * CELL_SIZE, rect.y * CELL_SIZE, rect.w * CELL_SIZE, rect.h * CELL_SIZE);
             }
             
-            // Текст площади
+            // Текст площади (без обводки, только заливка)
             for(let rect of rectangles) {
                 const area = rect.w * rect.h;
+                if (area === 1) continue; // не показываем единицы
                 const centerX = (rect.x + rect.w/2) * CELL_SIZE;
                 const centerY = (rect.y + rect.h/2) * CELL_SIZE;
-                
-                // === ИСПРАВЛЕНИЕ: всегда показываем число ===
                 let fontSize = Math.min(CELL_SIZE - 4, 18);
-                
-                // Для 1×1 делаем шрифт чуть меньше, чтобы красиво помещался
-                if (rect.w === 1 && rect.h === 1) {
-                    fontSize = Math.max(10, CELL_SIZE - 8); // 10–17 px в зависимости от CELL_SIZE
-                }
-                
+                if (rect.w === 1 && rect.h === 1) fontSize = 0;
                 ctx.font = `bold ${fontSize}px "Segoe UI", system-ui`;
                 ctx.textAlign = "center";
                 ctx.textBaseline = "middle";
-                
-                // Чёрная обводка для читаемости на любом фоне
-                ctx.shadowBlur = 0;
-                ctx.lineWidth = 2.5;
-                ctx.strokeStyle = '#000000';
-                ctx.strokeText(area.toString(), centerX, centerY);
-                
-                // Белый текст
                 ctx.fillStyle = '#FFFFFF';
+                ctx.shadowBlur = 0;
                 ctx.fillText(area.toString(), centerX, centerY);
             }
-
             
             // Подсветка выбранного угла
             if(selectionMode && firstCorner) {
