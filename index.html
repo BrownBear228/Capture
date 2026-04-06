@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Capture [Захват]</title>
+    <style>
+        * {
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: #1a3e2f;
+            font-family: 'Segoe UI', 'Roboto', system-ui, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .game-wrapper {
+            display: flex;
+            gap: 24px;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        .score-panel {
+            background: #2c2c2c;
+            border-radius: 32px;
+            padding: 20px 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            min-width: 160px;
+        }
+
+        .player-score-card {
+            background: #1e1e1e;
+            border-radius: 24px;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            transition: 0.1s linear;
+            border-left: 6px solid;
+        }
+
+        .player-color-badge {
+            width: 40px;
+            height: 40px;
+            border-radius: 20px;
+            box-shadow: 0 2px 6px black;
+        }
+
+        .player-score-info {
+            flex-grow: 1;
+        }
+
+        .player-name {
+            font-weight: bold;
+            font-size: 1.1rem;
+            color: #f0e6d2;
+        }
+
+        .player-score {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #ffd966;
+            line-height: 1;
+        }
+
+        .game-container {
+            background: #2c2c2c;
+            border-radius: 32px;
+            padding: 20px;
+            box-shadow: 0 20px 35px rgba(0,0,0,0.4);
+            overflow-x: auto;
+        }
+
+        canvas {
+            display: block;
+            margin: 0 auto;
+            border-radius: 12px;
+            box-shadow: 0 0 0 4px #d9c8a9, 0 10px 25px rgba(0,0,0,0.3);
+            cursor: crosshair;
+        }
+
+        .info-panel {
+            margin-top: 20px;
+            background: #ecd9b4;
+            border-radius: 40px;
+            padding: 15px 25px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+            font-weight: bold;
+            box-shadow: inset 0 1px 4px rgba(0,0,0,0.1), 0 5px 10px rgba(0,0,0,0.2);
+        }
+
+        .turn-indicator {
+            padding: 8px 18px;
+            border-radius: 60px;
+            color: white;
+            font-size: 1.3rem;
+            letter-spacing: 1px;
+            box-shadow: inset 0 -2px 0 rgba(0,0,0,0.3), 0 4px 8px rgba(0,0,0,0.2);
+            transition: background 0.2s;
+        }
+
+        .dice-area {
+            background: #2c2b26;
+            padding: 8px 20px;
+            border-radius: 50px;
+            color: #ffd966;
+            font-size: 1.6rem;
+            font-family: monospace;
+            font-weight: bold;
+        }
+
+        button {
+            background: #3b2a1f;
+            border: none;
+            color: #f7e5c2;
+            font-size: 1.1rem;
+            font-weight: bold;
+            padding: 8px 18px;
+            border-radius: 40px;
+            cursor: pointer;
+            transition: all 0.15s;
+            box-shadow: 0 2px 6px black;
+        }
+
+        button:hover {
+            background: #5e4230;
+            transform: scale(0.97);
+            color: white;
+        }
+
+        .message {
+            background: #2e2b24;
+            padding: 8px 20px;
+            border-radius: 36px;
+            color: #fadfaa;
+            font-size: 0.9rem;
+            max-width: 300px;
+            text-align: center;
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        @media (max-width: 900px) {
+            .game-wrapper { flex-direction: column; align-items: center; }
+            .score-panel { flex-direction: row; flex-wrap: wrap; justify-content: center; width: 100%; }
+            .player-score-card { min-width: 130px; }
+            .info-panel { flex-direction: column; align-items: stretch; }
+            .message { max-width: none; text-align: center; }
+        }
+    </style>
+</head>
+<body>
+<div class="game-wrapper">
+    <div class="score-panel" id="sideScorePanel"></div>
+
+    <div>
+        <div class="game-container">
+            <canvas id="gameCanvas" width="750" height="500" role="img" aria-label="Игровое поле 30x20 клеток"></canvas>
+            <div class="info-panel">
+                <div class="turn-indicator" id="turnText">Игрок 1 (красный)</div>
+                <div class="dice-area" id="diceDisplay">🎲  ?  ?  🎲</div>
+                <div class="controls">
+                    <button id="rollBtn" aria-label="Бросить кубики">🎲 Бросить кубики</button>
+                    <button id="skipBtn" aria-label="Пропустить ход">⏭ Пропустить ход</button>
+                    <button id="cancelBtn" aria-label="Отменить выбор">✖ Отменить выбор</button>
+                    <button id="resetBtn" aria-label="Новая игра">🔄 Новая игра</button>
+                </div>
+                <div class="message" id="msgArea">Нажмите "Бросить кубики"</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function(){
+        // ---------- ПАРАМЕТРЫ ПОЛЯ ----------
+        const COLS = 30;
+        const ROWS = 20;
+        const CELL_SIZE = 25;
+        const CANVAS_W = COLS * CELL_SIZE;
+        const CANVAS_H = ROWS * CELL_SIZE;
+
+        const PLAYER_COLORS = {
+            1: '#e34234',
+            2: '#4682b4',
+            3: '#3c9e3c',
+            4: '#e8b323'
+        };
+        const GRID_COLOR = '#c0b9a4';
+        const RECT_BORDER = '#000000';
+        const GHOST_STYLE = 'rgba(255, 255, 200, 0.4)';
+
+        let rectangles = [];
+        let currentPlayer = 1;
+        let diceN = 0, diceM = 0;
+        let waitingForRoll = true;
+        let selectionMode = false;
+        let firstCorner = null;
+        let currentMsg = "Бросьте кубики, чтобы начать ход";
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const turnText = document.getElementById('turnText');
+        const diceDisplay = document.getElementById('diceDisplay');
+        const msgArea = document.getElementById('msgArea');
+        const rollBtn = document.getElementById('rollBtn');
+        const skipBtn = document.getElementById('skipBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const sideScorePanel = document.getElementById('sideScorePanel');
+
+        // Настройка размеров canvas
+        canvas.width = CANVAS_W;
+        canvas.height = CANVAS_H;
+
+        function getPlayerName(player) {
+            const names = {1: 'Красный', 2: 'Синий', 3: 'Зелёный', 4: 'Жёлтый'};
+            return names[player];
+        }
+
+        function computeScores() {
+            let scores = {1:0,2:0,3:0,4:0};
+            for(let rect of rectangles) {
+                scores[rect.owner] += rect.w * rect.h;
+            }
+            return scores;
+        }
+
+        function updateSideScores() {
+            const scores = computeScores();
+            let html = '';
+            for(let p = 1; p <= 4; p++) {
+                const color = PLAYER_COLORS[p];
+                const name = getPlayerName(p);
+                const score = scores[p];
+                html += `
+                    <div class="player-score-card" style="border-left-color: ${color}">
+                        <div class="player-color-badge" style="background: ${color}"></div>
+                        <div class="player-score-info">
+                            <div class="player-name">${name}</div>
+                            <div class="player-score">${score}</div>
+                        </div>
+                    </div>
+                `;
+            }
+            sideScorePanel.innerHTML = html;
+        }
+
+        function updateUI() {
+            turnText.innerHTML = `Игрок ${currentPlayer} (${getPlayerName(currentPlayer)})`;
+            turnText.style.backgroundColor = PLAYER_COLORS[currentPlayer];
+            turnText.style.textShadow = '0 0 3px black';
+            
+            if(diceN && diceM && !waitingForRoll) {
+                diceDisplay.innerHTML = `🎲 ${diceN}  ·  ${diceM} 🎲`;
+            } else {
+                diceDisplay.innerHTML = `🎲  ?  ?  🎲`;
+            }
+            msgArea.innerText = currentMsg;
+            updateSideScores();
+        }
+
+        function areAdjacentByEdge(rect1, rect2) {
+            const r1_left = rect1.x;
+            const r1_right = rect1.x + rect1.w - 1;
+            const r1_top = rect1.y;
+            const r1_bottom = rect1.y + rect1.h - 1;
+            
+            const r2_left = rect2.x;
+            const r2_right = rect2.x + rect2.w - 1;
+            const r2_top = rect2.y;
+            const r2_bottom = rect2.y + rect2.h - 1;
+            
+            const x_overlap = (r1_left <= r2_right && r1_right >= r2_left);
+            const y_overlap = (r1_top <= r2_bottom && r1_bottom >= r2_top);
+            
+            if (x_overlap) {
+                if (r1_bottom + 1 === r2_top) return true;
+                if (r2_bottom + 1 === r1_top) return true;
+            }
+            if (y_overlap) {
+                if (r1_right + 1 === r2_left) return true;
+                if (r2_right + 1 === r1_left) return true;
+            }
+            return false;
+        }
+
+        function isAdjacentToPlayer(rect, player) {
+            const playerRects = rectangles.filter(r => r.owner === player);
+            for(let pr of playerRects) {
+                if(areAdjacentByEdge(rect, pr)) return true;
+            }
+            return false;
+        }
+
+        function isAreaFree(x, y, w, h) {
+            for(let r of rectangles) {
+                if (x < r.x + r.w && x + w > r.x && y < r.y + r.h && y + h > r.y) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function getExactRectangle(x, y, w, h) {
+            for(let r of rectangles) {
+                if(r.x === x && r.y === y && r.w === w && r.h === h) return r;
+            }
+            return null;
+        }
+
+        function isValidSize(w, h, a, b) {
+            return (w === a && h === b) || (w === b && h === a);
+        }
+
+        // Проверка, остались ли у игрока прямоугольники
+        function hasTerritory(player) {
+            return rectangles.some(r => r.owner === player);
+        }
+
+        // Переключение хода с проверкой на поражение
+        function nextTurn() {
+            let next = (currentPlayer % 4) + 1;
+            // Если следующий игрок не имеет территории, пропустить его
+            if (!hasTerritory(next)) {
+                currentMsg = `Игрок ${getPlayerName(next)} не имеет территории и выбывает!`;
+                updateUI();
+                // Пропускаем этого игрока, идём дальше
+                currentPlayer = next;
+                nextTurn(); // рекурсивно ищем следующего живого
+                return;
+            }
+            currentPlayer = next;
+            waitingForRoll = true;
+            selectionMode = false;
+            firstCorner = null;
+            diceN = 0;
+            diceM = 0;
+            currentMsg = `Игрок ${currentPlayer} (${getPlayerName(currentPlayer)}), бросьте кубики`;
+            updateUI();
+            drawBoard();
+        }
+
+        function finishMove() {
+            drawBoard();
+            // Проверим, не выиграл ли кто (вся карта?)
+            const scores = computeScores();
+            const totalCells = COLS * ROWS;
+            for (let p = 1; p <= 4; p++) {
+                if (scores[p] === totalCells) {
+                    currentMsg = `🏆 ПОБЕДА! Игрок ${getPlayerName(p)} захватил всё поле! 🏆`;
+                    updateUI();
+                    // Блокируем дальнейшие ходы
+                    waitingForRoll = true;
+                    selectionMode = false;
+                    rollBtn.disabled = true;
+                    skipBtn.disabled = true;
+                    cancelBtn.disabled = true;
+                    return;
+                }
+            }
+            nextTurn();
+        }
+
+        function rollDice() {
+            if(!waitingForRoll) {
+                currentMsg = "Вы уже бросили! Сначала разместите прямоугольник или пропустите ход.";
+                updateUI();
+                return;
+            }
+            diceN = Math.floor(Math.random() * 6) + 1;
+            diceM = Math.floor(Math.random() * 6) + 1;
+            waitingForRoll = false;
+            selectionMode = true;
+            firstCorner = null;
+            currentMsg = `🎲 Выпало ${diceN} и ${diceM}. Кликните на поле, чтобы выбрать прямоугольник ${diceN}×${diceM} (или ${diceM}×${diceN}). Первый клик — угол, второй — противоположный.`;
+            updateUI();
+            drawBoard();
+        }
+
+        function skipTurn() {
+            if(waitingForRoll) {
+                currentMsg = "Вы пропускаете ход, не бросая кубики";
+            } else {
+                currentMsg = "Ход пропущен (вы не разместили прямоугольник)";
+            }
+            finishMove();
+        }
+
+        function cancelSelection() {
+            if (!selectionMode || waitingForRoll) {
+                currentMsg = "Нечего отменять — вы ещё не выбрали первый угол.";
+                updateUI();
+                return;
+            }
+            firstCorner = null;
+            currentMsg = `Выбор отменён. Можете начать заново с любого угла для прямоугольника ${diceN}×${diceM}.`;
+            updateUI();
+            drawBoard();
+        }
+
+        function tryMakeMove(x, y, w, h) {
+            // 1. Проверка размера
+            if (!isValidSize(w, h, diceN, diceM)) {
+                currentMsg = `❌ Ошибка: нужен прямоугольник ${diceN}×${diceM} (или ${diceM}×${diceN})`;
+                updateUI();
+                return false;
+            }
+            // 2. Границы
+            if(x < 0 || y < 0 || x+w > COLS || y+h > ROWS) {
+                currentMsg = "❌ Прямоугольник выходит за границы поля";
+                updateUI();
+                return false;
+            }
+            
+            // Случай свободной области
+            if(isAreaFree(x, y, w, h)) {
+                const tempRect = { x, y, w, h };
+                if(isAdjacentToPlayer(tempRect, currentPlayer)) {
+                    rectangles.push({ owner: currentPlayer, x, y, w, h });
+                    currentMsg = `✅ Расширение: занята область ${w}×${h}`;
+                    return true;
+                } else {
+                    currentMsg = "❌ Расширение: прямоугольник не прилегает к вашей территории (нужна общая сторона)";
+                    updateUI();
+                    return false;
+                }
+            } 
+            // Случай захвата
+            else {
+                const targetRect = getExactRectangle(x, y, w, h);
+                if(targetRect && targetRect.owner !== currentPlayer) {
+                    // Дополнительная проверка размера для захвата (уже есть через isValidSize)
+                    if(isAdjacentToPlayer(targetRect, currentPlayer)) {
+                        targetRect.owner = currentPlayer;
+                        currentMsg = `⚔️ ЗАХВАТ! Вы отобрали прямоугольник ${w}×${h} у ${getPlayerName(targetRect.owner)}`;
+                        return true;
+                    } else {
+                        currentMsg = "❌ Захват невозможен: вражеский прямоугольник не касается вашей территории (нет общей стороны)";
+                        updateUI();
+                        return false;
+                    }
+                } else if(targetRect && targetRect.owner === currentPlayer) {
+                    currentMsg = "❌ Это ваш прямоугольник! Нельзя захватить самого себя.";
+                    updateUI();
+                    return false;
+                } else {
+                    // Область не является свободной и не является целым вражеским прямоугольником
+                    currentMsg = "❌ Невозможно: эта область частично перекрыта или не совпадает с существующим прямоугольником. Выберите целый чужой прямоугольник или пустое место.";
+                    updateUI();
+                    return false;
+                }
+            }
+        }
+
+        // Отрисовка
+        function drawBoard() {
+            ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+            
+            // Сетка
+            ctx.beginPath();
+            ctx.strokeStyle = GRID_COLOR;
+            ctx.lineWidth = 1;
+            for (let row = 0; row <= ROWS; row++) {
+                ctx.moveTo(0, row * CELL_SIZE);
+                ctx.lineTo(CANVAS_W, row * CELL_SIZE);
+                ctx.stroke();
+            }
+            for (let col = 0; col <= COLS; col++) {
+                ctx.moveTo(col * CELL_SIZE, 0);
+                ctx.lineTo(col * CELL_SIZE, CANVAS_H);
+                ctx.stroke();
+            }
+            
+            // Прямоугольники
+            for(let rect of rectangles) {
+                ctx.fillStyle = PLAYER_COLORS[rect.owner];
+                ctx.fillRect(rect.x * CELL_SIZE, rect.y * CELL_SIZE, rect.w * CELL_SIZE, rect.h * CELL_SIZE);
+                ctx.strokeStyle = RECT_BORDER;
+                ctx.lineWidth = 2;
+                ctx.strokeRect(rect.x * CELL_SIZE, rect.y * CELL_SIZE, rect.w * CELL_SIZE, rect.h * CELL_SIZE);
+            }
+            
+            // Текст площади (без обводки, только заливка)
+            for(let rect of rectangles) {
+                const area = rect.w * rect.h;
+                if (area === 1) continue; // не показываем единицы
+                const centerX = (rect.x + rect.w/2) * CELL_SIZE;
+                const centerY = (rect.y + rect.h/2) * CELL_SIZE;
+                let fontSize = Math.min(CELL_SIZE - 4, 18);
+                if (rect.w === 1 && rect.h === 1) fontSize = 0;
+                ctx.font = `bold ${fontSize}px "Segoe UI", system-ui`;
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillStyle = '#FFFFFF';
+                ctx.shadowBlur = 0;
+                ctx.fillText(area.toString(), centerX, centerY);
+            }
+            
+            // Подсветка выбранного угла
+            if(selectionMode && firstCorner) {
+                ctx.fillStyle = 'rgba(255,255,100,0.6)';
+                ctx.fillRect(firstCorner.x * CELL_SIZE, firstCorner.y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                ctx.strokeStyle = 'gold';
+                ctx.lineWidth = 2.5;
+                ctx.strokeRect(firstCorner.x * CELL_SIZE, firstCorner.y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                
+                // Призрачный прямоугольник от первого угла до курсора? Сложно без координат мыши, но можно просто нарисовать рамку возможного прямоугольника
+                // Для улучшения UX нарисуем полупрозрачную рамку, если есть первый угол и мы знаем размеры diceN/diceM? Нет, второй угол ещё не выбран.
+                // Лучше оставить как есть.
+            }
+        }
+
+        // Обработка кликов с поддержкой призрачного прямоугольника (показываем при перемещении мыши)
+        let ghostX = -1, ghostY = -1;
+        function onMouseMove(e) {
+            if (!selectionMode || firstCorner === null) {
+                ghostX = -1;
+                return;
+            }
+            const rectCanvas = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rectCanvas.width;
+            const scaleY = canvas.height / rectCanvas.height;
+            let mouseX = (e.clientX - rectCanvas.left) * scaleX;
+            let mouseY = (e.clientY - rectCanvas.top) * scaleY;
+            let cellX = Math.floor(mouseX / CELL_SIZE);
+            let cellY = Math.floor(mouseY / CELL_SIZE);
+            if(cellX < 0) cellX = 0;
+            if(cellY < 0) cellY = 0;
+            if(cellX >= COLS) cellX = COLS-1;
+            if(cellY >= ROWS) cellY = ROWS-1;
+            ghostX = cellX;
+            ghostY = cellY;
+            drawBoard();
+            // Рисуем призрачный прямоугольник поверх
+            if (firstCorner && ghostX >= 0 && ghostY >= 0) {
+                let x1 = firstCorner.x, y1 = firstCorner.y;
+                let x2 = ghostX, y2 = ghostY;
+                let left = Math.min(x1, x2);
+                let right = Math.max(x1, x2);
+                let top = Math.min(y1, y2);
+                let bottom = Math.max(y1, y2);
+                let width = right - left + 1;
+                let height = bottom - top + 1;
+                // Проверяем соответствие размера для подсказки
+                let isValid = isValidSize(width, height, diceN, diceM);
+                ctx.fillStyle = isValid ? GHOST_STYLE : 'rgba(255, 80, 80, 0.3)';
+                ctx.fillRect(left * CELL_SIZE, top * CELL_SIZE, width * CELL_SIZE, height * CELL_SIZE);
+                ctx.strokeStyle = isValid ? '#ffff00' : '#ff0000';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(left * CELL_SIZE, top * CELL_SIZE, width * CELL_SIZE, height * CELL_SIZE);
+            }
+        }
+
+        function handleCanvasClick(e) {
+            if(waitingForRoll) {
+                currentMsg = "Сначала бросьте кубики (кнопка 'Бросить кубики')";
+                updateUI();
+                return;
+            }
+            if(!selectionMode) {
+                currentMsg = "Сейчас не режим выбора (пропустите ход или бросьте кубики заново)";
+                updateUI();
+                return;
+            }
+            const rectCanvas = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rectCanvas.width;
+            const scaleY = canvas.height / rectCanvas.height;
+            let mouseX = (e.clientX - rectCanvas.left) * scaleX;
+            let mouseY = (e.clientY - rectCanvas.top) * scaleY;
+            let cellX = Math.floor(mouseX / CELL_SIZE);
+            let cellY = Math.floor(mouseY / CELL_SIZE);
+            if(cellX < 0) cellX = 0;
+            if(cellY < 0) cellY = 0;
+            if(cellX >= COLS) cellX = COLS-1;
+            if(cellY >= ROWS) cellY = ROWS-1;
+            
+            if(firstCorner === null) {
+                firstCorner = { x: cellX, y: cellY };
+                currentMsg = `Первый угол: (${cellX},${cellY}). Теперь выберите противоположный угол для прямоугольника ${diceN}×${diceM}.`;
+                updateUI();
+                drawBoard();
+            } else {
+                let x1 = firstCorner.x, y1 = firstCorner.y;
+                let x2 = cellX, y2 = cellY;
+                let left = Math.min(x1, x2);
+                let right = Math.max(x1, x2);
+                let top = Math.min(y1, y2);
+                let bottom = Math.max(y1, y2);
+                let width = right - left + 1;
+                let height = bottom - top + 1;
+                
+                let success = tryMakeMove(left, top, width, height);
+                if(success) {
+                    drawBoard();
+                    finishMove();
+                } else {
+                    // Сбрасываем первый угол, чтобы игрок мог начать заново
+                    firstCorner = null;
+                    // currentMsg уже обновлён в tryMakeMove
+                    updateUI();
+                    drawBoard();
+                }
+            }
+        }
+        
+        function newGame() {
+            rectangles = [];
+            // Стартовые территории 2x2 в углах
+            rectangles.push({ owner: 1, x: 0, y: 0, w: 2, h: 2 });
+            rectangles.push({ owner: 2, x: COLS-2, y: 0, w: 2, h: 2 });
+            rectangles.push({ owner: 3, x: 0, y: ROWS-2, w: 2, h: 2 });
+            rectangles.push({ owner: 4, x: COLS-2, y: ROWS-2, w: 2, h: 2 });
+            currentPlayer = 1;
+            waitingForRoll = true;
+            selectionMode = false;
+            firstCorner = null;
+            diceN = 0; diceM = 0;
+            currentMsg = "Новая игра! Игрок 1 (красный) начинает. Бросьте кубики.";
+            rollBtn.disabled = false;
+            skipBtn.disabled = false;
+            cancelBtn.disabled = false;
+            updateUI();
+            drawBoard();
+        }
+        
+        // Горячие клавиши
+        function handleKey(e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                if (!rollBtn.disabled) rollDice();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                cancelSelection();
+            } else if (e.key === 'r' || e.key === 'R') {
+                e.preventDefault();
+                newGame();
+            } else if (e.key === 's' || e.key === 'S') {
+                e.preventDefault();
+                skipTurn();
+            }
+        }
+        
+        canvas.addEventListener('click', handleCanvasClick);
+        canvas.addEventListener('mousemove', onMouseMove);
+        canvas.addEventListener('mouseleave', () => { ghostX = -1; drawBoard(); });
+        rollBtn.addEventListener('click', rollDice);
+        skipBtn.addEventListener('click', skipTurn);
+        cancelBtn.addEventListener('click', cancelSelection);
+        resetBtn.addEventListener('click', newGame);
+        window.addEventListener('keydown', handleKey);
+        
+        newGame();
+    })();
+</script>
+</body>
+</html>
