@@ -502,21 +502,35 @@
                 ctx.strokeRect(rect.x * CELL_SIZE, rect.y * CELL_SIZE, rect.w * CELL_SIZE, rect.h * CELL_SIZE);
             }
             
-            // Текст площади (без обводки, только заливка)
+            // Текст площади
             for(let rect of rectangles) {
                 const area = rect.w * rect.h;
-                if (area === 1) continue; // не показываем единицы
                 const centerX = (rect.x + rect.w/2) * CELL_SIZE;
                 const centerY = (rect.y + rect.h/2) * CELL_SIZE;
+                
+                // === ИСПРАВЛЕНИЕ: всегда показываем число ===
                 let fontSize = Math.min(CELL_SIZE - 4, 18);
-                if (rect.w === 1 && rect.h === 1) fontSize = 0;
+                
+                // Для 1×1 делаем шрифт чуть меньше, чтобы красиво помещался
+                if (rect.w === 1 && rect.h === 1) {
+                    fontSize = Math.max(10, CELL_SIZE - 8); // 10–17 px в зависимости от CELL_SIZE
+                }
+                
                 ctx.font = `bold ${fontSize}px "Segoe UI", system-ui`;
                 ctx.textAlign = "center";
                 ctx.textBaseline = "middle";
-                ctx.fillStyle = '#FFFFFF';
+                
+                // Чёрная обводка для читаемости на любом фоне
                 ctx.shadowBlur = 0;
+                ctx.lineWidth = 2.5;
+                ctx.strokeStyle = '#000000';
+                ctx.strokeText(area.toString(), centerX, centerY);
+                
+                // Белый текст
+                ctx.fillStyle = '#FFFFFF';
                 ctx.fillText(area.toString(), centerX, centerY);
             }
+
             
             // Подсветка выбранного угла
             if(selectionMode && firstCorner) {
