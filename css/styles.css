@@ -26,7 +26,6 @@ body {
 .game-container {
     display: flex;
     gap: 24px;
-    
     align-items: flex-start;
     /* Если экран слишком узкий — появится горизонтальная прокрутка */
     overflow-x: auto;
