@@ -3,28 +3,23 @@
     -webkit-tap-highlight-color: transparent;
 }
 
-/* Запрещаем прокрутку страницы и делаем body на весь экран */
 body {
     background: #1a3e2f;
     font-family: 'Segoe UI', 'Roboto', system-ui, sans-serif;
-    margin: 0;
-    padding: 0;
-    overflow: hidden;           /* Убираем полосы прокрутки */
-    height: 100vh;
-    width: 100vw;
     display: flex;
     justify-content: center;
     align-items: center;
+    min-height: 100vh;
+    margin: 0;
+    padding: 20px;
 }
 
-/* Контейнер для масштабирования — JS будет применять transform: scale() */
 .game-wrapper {
     display: flex;
     gap: 24px;
     flex-wrap: wrap;
     justify-content: center;
     align-items: flex-start;
-    transform-origin: top left; /* Чтобы масштабирование шло от левого верхнего угла */
 }
 
 .score-panel {
