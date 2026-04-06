@@ -14,7 +14,6 @@ body {
     padding: 20px;
 }
 
-/* Общий фон для всего игрового блока */
 .game-wrapper {
     background: #2c2c2c;
     border-radius: 32px;
@@ -22,88 +21,52 @@ body {
     padding: 20px;
 }
 
-/* Контейнер, который объединяет счёт слева и поле справа - всегда горизонтально */
 .game-container {
     display: flex;
     gap: 24px;
     align-items: flex-start;
-    /* Если экран слишком узкий — появится горизонтальная прокрутка */
     overflow-x: auto;
 }
 
-/* Панель счёта — фиксированная ширина, не сжимается */
-.score-panel {
-    flex-shrink: 0;
-    background: transparent;
-    border-radius: 0;
-    box-shadow: none;
-    padding: 0;
+/* canvas-area теперь flex-колонка */
+.canvas-area {
+    flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 20px;
-    width: 180px; /* фиксированная ширина, можно min-width */
 }
 
-/* Область, содержащая канвас и информационную панель — занимает остаток места */
-.canvas-area {
-    flex: 1;
-    min-width: 0; /* важно для корректного сжатия при необходимости */
-    /* Убираем перенос на новую строку */
-    flex-wrap: nowrap;
-    /* Выравнивание по левому краю */
-    justify-content: flex-start;
-}
-
-/* Карточки игроков */
-.player-score-card {
-    background: #1e1e1e;
-    border-radius: 24px;
-    padding: 12px 16px;
+/* Верхняя строка: панель счёта слева, canvas справа */
+.game-top-row {
     display: flex;
-    align-items: center;
-    gap: 15px;
-    transition: 0.1s linear;
-    border-left: 6px solid;
+    gap: 24px;
+    align-items: flex-start;
 }
 
-.player-color-badge {
-    width: 40px;
-    height: 40px;
-    border-radius: 20px;
-    box-shadow: 0 2px 6px black;
+/* Панель счёта фиксированной ширины */
+.score-panel {
+    flex-shrink: 0;
+    background: transparent;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    width: 180px;
 }
 
-.player-score-info {
-    flex-grow: 1;
-}
-
-.player-name {
-    font-weight: bold;
-    font-size: 1.1rem;
-    color: #f0e6d2;
-}
-
-.player-score {
-    font-size: 1.8rem;
-    font-weight: bold;
-    color: #ffd966;
-    line-height: 1;
-}
-
+/* Canvas занимает всё оставшееся место в верхней строке */
 canvas {
+    flex: 1;
     display: block;
-    margin: 0 auto;
     border-radius: 12px;
     box-shadow: 0 0 0 4px #d9c8a9, 0 10px 25px rgba(0,0,0,0.3);
     cursor: crosshair;
-    /* Фиксированные размеры, но можно задать max-width для масштабирования */
-    width: auto;
-    height: auto;
     max-width: 100%;
+    height: auto;
 }
 
+/* Информационная панель – на всю ширину canvas-area */
 .info-panel {
-    margin-top: 20px;
     background: #ecd9b4;
     border-radius: 40px;
     padding: 15px 25px;
@@ -114,6 +77,8 @@ canvas {
     gap: 15px;
     font-weight: bold;
     box-shadow: inset 0 1px 4px rgba(0,0,0,0.1), 0 5px 10px rgba(0,0,0,0.2);
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .turn-indicator {
@@ -172,17 +137,53 @@ button:hover {
     flex-wrap: wrap;
 }
 
-/* Убираем всякое переопределение на узких экранах — всегда горизонтально */
+/* Карточки игроков (динамически добавляются в .score-panel) */
+.player-score-card {
+    background: #1e1e1e;
+    border-radius: 24px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    transition: 0.1s linear;
+    border-left: 6px solid;
+}
+
+.player-color-badge {
+    width: 40px;
+    height: 40px;
+    border-radius: 20px;
+    box-shadow: 0 2px 6px black;
+}
+
+.player-score-info {
+    flex-grow: 1;
+}
+
+.player-name {
+    font-weight: bold;
+    font-size: 1.1rem;
+    color: #f0e6d2;
+}
+
+.player-score {
+    font-size: 1.8rem;
+    font-weight: bold;
+    color: #ffd966;
+    line-height: 1;
+}
+
 @media (max-width: 900px) {
-    /* Не меняем направление, оставляем row */
     .game-container {
         flex-wrap: nowrap;
         gap: 16px;
     }
     .score-panel {
-        width: 150px; /* чуть уже, чтобы влезало */
+        width: 150px;
     }
-    /* Если нужно, можно уменьшить отступы */
+    .game-top-row {
+        gap: 16px;
+    }
     .info-panel {
         padding: 12px 18px;
     }
