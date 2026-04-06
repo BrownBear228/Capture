@@ -8,10 +8,12 @@
 </head>
 <body>
 <div class="game-wrapper">
-    <div class="score-panel" id="sideScorePanel"></div>
-
-    <div>
-        <div class="game-container">
+    <div class="game-container">
+        <!-- Панель счёта теперь внутри game-container, слева -->
+        <div class="score-panel" id="sideScorePanel"></div>
+        
+        <!-- Область с канвасом и информационной панелью -->
+        <div class="canvas-area">
             <canvas id="gameCanvas" width="750" height="500" role="img" aria-label="Игровое поле 39x28 клеток"></canvas>
             <div class="info-panel">
                 <div class="turn-indicator" id="turnText">Игрок 1 (красный)</div>
