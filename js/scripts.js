@@ -1,8 +1,8 @@
 (function(){
     // ---------- ПАРАМЕТРЫ ПОЛЯ ----------
-    const COLS = 30;
-    const ROWS = 20;
-    const CELL_SIZE = 25;
+    const COLS = 39;
+    const ROWS = 28;
+    const CELL_SIZE = 20;
     const CANVAS_W = COLS * CELL_SIZE;
     const CANVAS_H = ROWS * CELL_SIZE;
 
