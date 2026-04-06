@@ -339,17 +339,15 @@
             return rectangles.some(r => r.owner === player);
         }
 
-        // Переключение хода — исправленная версия БЕЗ рекурсии
         function nextTurn() {
-            let attempts = 0;                    // защита от бесконечного цикла
+            let attempts = 0;
             let next = currentPlayer;
 
-            while (attempts < 5) {               // максимум 4 игрока + 1 страховка
+            while (attempts < 5) {
                 attempts++;
                 next = (next % 4) + 1;
 
                 if (hasTerritory(next)) {
-                    // Нашли живого игрока — передаём ему ход
                     currentPlayer = next;
                     waitingForRoll = true;
                     selectionMode = false;
@@ -360,31 +358,24 @@
                     updateUI();
                     drawBoard();
                     return;
-                } 
-                else {
-                    // Игрок выбывает — показываем сообщение ОДИН раз
+                } else {
                     currentMsg = ❌ Игрок ${getPlayerName(next)} не имеет территории и выбывает!;
                     updateUI();
-                    // продолжаем искать дальше (следующий игрок)
                 }
             }
 
-            // Если дошли сюда — значит остался только один игрок (или никого)
+            // Если все выбыли — конец игры
             const scores = computeScores();
-            const alivePlayers = [1,2,3,4].filter(p => scores[p] > 0);
-            
-            if (alivePlayers.length === 1) {
-                const winner = alivePlayers[0];
-                currentMsg = 🏆 ПОБЕДА! Игрок ${getPlayerName(winner)} остался единственным на поле! 🏆;
-                updateUI();
-                // Блокируем игру
-                rollBtn.disabled = true;
-                skipBtn.disabled = true;
-                cancelBtn.disabled = true;
+            const alive = [1,2,3,4].filter(p => scores[p] > 0);
+            if (alive.length === 1) {
+                currentMsg = 🏆 ПОБЕДА! Игрок ${getPlayerName(alive[0])} остался единственным!;
             } else {
                 currentMsg = "😵 Все игроки выбыли — ничья";
-                updateUI();
             }
+            updateUI();
+            rollBtn.disabled = true;
+            skipBtn.disabled = true;
+            cancelBtn.disabled = true;
         }
 
         function finishMove() {
