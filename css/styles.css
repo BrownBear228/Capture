@@ -22,17 +22,22 @@ body {
     padding: 20px;
 }
 
-/* Контейнер, который объединяет счёт слева и поле справа */
+/* Контейнер, который объединяет счёт слева и поле справа - всегда горизонтально */
 .game-container {
     display: flex;
     gap: 24px;
-    flex-wrap: wrap;
-    justify-content: center;
+    /* Убираем перенос на новую строку */
+    flex-wrap: nowrap;
+    /* Выравнивание по левому краю */
+    justify-content: flex-start;
     align-items: flex-start;
+    /* Если экран слишком узкий — появится горизонтальная прокрутка */
+    overflow-x: auto;
 }
 
-/* Панель счёта — теперь внутри game-container, слева */
+/* Панель счёта — фиксированная ширина, не сжимается */
 .score-panel {
+    flex-shrink: 0;
     background: transparent;
     border-radius: 0;
     box-shadow: none;
@@ -40,13 +45,13 @@ body {
     display: flex;
     flex-direction: column;
     gap: 20px;
-    min-width: 160px;
+    width: 180px; /* фиксированная ширина, можно min-width */
 }
 
-/* Область, содержащая канвас и информационную панель */
+/* Область, содержащая канвас и информационную панель — занимает остаток места */
 .canvas-area {
     flex: 1;
-    min-width: 280px;
+    min-width: 0; /* важно для корректного сжатия при необходимости */
 }
 
 /* Карточки игроков */
@@ -91,8 +96,10 @@ canvas {
     border-radius: 12px;
     box-shadow: 0 0 0 4px #d9c8a9, 0 10px 25px rgba(0,0,0,0.3);
     cursor: crosshair;
-    width: 100%;
+    /* Фиксированные размеры, но можно задать max-width для масштабирования */
+    width: auto;
     height: auto;
+    max-width: 100%;
 }
 
 .info-panel {
@@ -165,26 +172,22 @@ button:hover {
     flex-wrap: wrap;
 }
 
+/* Убираем всякое переопределение на узких экранах — всегда горизонтально */
 @media (max-width: 900px) {
+    /* Не меняем направление, оставляем row */
     .game-container {
-        flex-direction: column;
-        align-items: center;
+        flex-wrap: nowrap;
+        gap: 16px;
     }
     .score-panel {
-        flex-direction: row;
-        flex-wrap: wrap;
-        justify-content: center;
-        width: 100%;
+        width: 150px; /* чуть уже, чтобы влезало */
     }
-    .player-score-card {
-        min-width: 130px;
-    }
+    /* Если нужно, можно уменьшить отступы */
     .info-panel {
-        flex-direction: column;
-        align-items: stretch;
+        padding: 12px 18px;
     }
-    .message {
-        max-width: none;
-        text-align: center;
+    button {
+        padding: 6px 14px;
+        font-size: 1rem;
     }
 }
