@@ -445,6 +445,49 @@
             skipTurn();
         }
     }
+
+    // Функция для масштабирования игры под размер окна
+    function fitGameToWindow() {
+        const wrapper = document.querySelector('.game-wrapper');
+        if (!wrapper) return;
+    
+        // Сохраняем текущую трансформацию, чтобы временно убрать её для измерения
+        const originalTransform = wrapper.style.transform;
+        wrapper.style.transform = 'none';
+        
+        // Получаем реальные размеры контента без масштаба
+        const contentWidth = wrapper.scrollWidth;
+        const contentHeight = wrapper.scrollHeight;
+        
+        // Возвращаем трансформацию
+        wrapper.style.transform = originalTransform;
+    
+        // Размеры окна
+        const windowWidth = window.innerWidth;
+        const windowHeight = window.innerHeight;
+    
+        // Вычисляем масштаб (чтобы всё влезло, но не более 1)
+        const scaleX = windowWidth / contentWidth;
+        const scaleY = windowHeight / contentHeight;
+        const scale = Math.min(scaleX, scaleY, 1); // не увеличиваем больше 1
+    
+        // Применяем масштаб
+        wrapper.style.transform = `scale(${scale})`;
+        wrapper.style.transformOrigin = 'top left';
+    
+        // Центрируем содержимое по горизонтали и вертикали
+        const scaledWidth = contentWidth * scale;
+        const scaledHeight = contentHeight * scale;
+        const offsetX = (windowWidth - scaledWidth) / 2;
+        const offsetY = (windowHeight - scaledHeight) / 2;
+        wrapper.style.position = 'relative';
+        wrapper.style.left = `${offsetX}px`;
+        wrapper.style.top = `${offsetY}px`;
+    }
+    
+    // Вызываем при загрузке страницы и при изменении размера окна
+    window.addEventListener('load', fitGameToWindow);
+    window.addEventListener('resize', fitGameToWindow);
     
     canvas.addEventListener('click', handleCanvasClick);
     canvas.addEventListener('mousemove', onMouseMove);
