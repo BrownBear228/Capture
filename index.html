@@ -9,25 +9,23 @@
 <body>
 <div class="game-wrapper">
     <div class="game-container">
-        <!-- Вся область справа от панели счёта (или с панелью внутри) -->
-        <div class="canvas-area">
-            <!-- Верхняя строка: панель счёта + canvas -->
-            <div class="game-top-row" width="750" height="500">
+        <div class="game-top-row">
+            <div class="left-panel">
                 <div class="score-panel" id="sideScorePanel"></div>
-                <canvas id="gameCanvas" role="img" aria-label="Игровое поле 39x28 клеток"></canvas>
+                <div class="turn-counter-box">Ход: <span id="turnCountDisplay">0</span></div>
+                <div class="timer-box">⏱️ Время: <span id="timerDisplay">00:00</span></div>
+                <button id="resetBtnLeft" class="reset-button">🔄 Новая игра</button>
             </div>
-            <!-- Информационная панель внизу на всю ширину -->
-            <div class="info-panel">
-                <div class="turn-indicator" id="turnText">Игрок 1 (красный)</div>
-                <div class="dice-area" id="diceDisplay">🎲  ?  ?  🎲</div>
-                <div class="controls">
-                    <button id="rollBtn" aria-label="Бросить кубики">🎲 Бросить кубики</button>
-                    <button id="skipBtn" aria-label="Пропустить ход">⏭ Пропустить ход</button>
-                    <button id="cancelBtn" aria-label="Отменить выбор">✖ Отменить выбор</button>
-                    <button id="resetBtn" aria-label="Новая игра">🔄 Новая игра</button>
-                </div>
-                <div class="message" id="msgArea">Нажмите "Бросить кубики"</div>
+            <canvas id="gameCanvas" width="780" height="560" role="img" aria-label="Игровое поле 39x28 клеток"></canvas>
+        </div>
+        <div class="info-panel">
+            <div class="turn-indicator" id="turnText">Игрок 1 (красный)</div>
+            <div class="dice-area" id="diceDisplay">🎲  ?  ?  🎲</div>
+            <div class="controls">
+                <button id="rollBtn" aria-label="Бросить кубики">🎲 Бросить кубики</button>
+                <button id="skipBtn" aria-label="Пропустить ход">⏭ Пропустить ход</button>
             </div>
+            <div class="message" id="msgArea">Нажмите "Бросить кубики"</div>
         </div>
     </div>
 </div>
