@@ -34,6 +34,11 @@
     let timerSeconds = 0;
     let timerInterval = null;
 
+    // ---------- Режим ботов ----------
+    let botMode = true;            // боты включены
+    let botPlayers = [2, 3, 4];    // кто управляется ботами
+    let isBotThinking = false;     // чтобы боты не накладывались
+
     const START_CELLS = {
         1: { x: 0, y: 0 },
         2: { x: COLS-2, y: 0 },
@@ -231,35 +236,27 @@
         return null;
     }
 
-    // Распределение территории выбывшего
     function redistributeTerritory(eliminatedPlayer, killerPlayer) {
         const startEliminated = START_CELLS[eliminatedPlayer];
         const alivePlayers = activePlayers.filter(p => p !== eliminatedPlayer);
         const eliminatedRects = rectangles.filter(r => r.owner === eliminatedPlayer);
         
-        // Сначала для каждого прямоугольника жертвы определяем, к каким живым игрокам он прилегает (до любых изменений)
         const adjacencyMap = new Map();
         for (let rect of eliminatedRects) {
             const adjacentTo = alivePlayers.filter(p => isAdjacentToPlayer(rect, p));
             adjacencyMap.set(rect, adjacentTo);
         }
         
-        // Распределяем
         for (let rect of eliminatedRects) {
             const adjacentTo = adjacencyMap.get(rect);
-            
             if (adjacentTo.length === 0) {
                 rect.owner = null;
                 continue;
             }
-            
-            // Приоритет 1: убийца получает всё, что к нему прилегает
             if (adjacentTo.includes(killerPlayer)) {
                 rect.owner = killerPlayer;
                 continue;
             }
-            
-            // Приоритет 2: среди оставшихся игроков выбираем по близости угла
             const candidates = [...adjacentTo];
             if (candidates.length === 1) {
                 rect.owner = candidates[0];
@@ -281,21 +278,16 @@
         if (!activePlayers.includes(eliminated)) return;
         eliminatedOrder.push(eliminated);
         activePlayers = activePlayers.filter(p => p !== eliminated);
-        
         redistributeTerritory(eliminated, killer);
-        
         currentMsg = `💀 Игрок ${getPlayerName(eliminated)} выбыл! Его территория перераспределена.`;
         updateUI();
         drawBoard();
-        
         if (activePlayers.length === 1) {
             endGame('elimination');
         }
     }
 
-    // НОВАЯ проверка: поле полностью покрыто прямоугольниками (нейтральные допускаются)
     function isFieldFullyOccupied() {
-        // Создаём матрицу занятости
         const occupied = Array(ROWS).fill().map(() => Array(COLS).fill(false));
         for (let rect of rectangles) {
             for (let i = rect.x; i < rect.x + rect.w; i++) {
@@ -306,7 +298,6 @@
                 }
             }
         }
-        // Проверяем, нет ли пустых клеток
         for (let y = 0; y < ROWS; y++) {
             for (let x = 0; x < COLS; x++) {
                 if (!occupied[y][x]) return false;
@@ -318,7 +309,7 @@
     function endGame(reason) {
         if (!gameActive) return;
         gameActive = false;
-        stopTimer(); // останавливаем таймер
+        stopTimer();
         rollBtn.disabled = true;
         skipBtn.disabled = true;
         
@@ -442,11 +433,134 @@
         currentMsg = `Игрок ${currentPlayer} (${getPlayerName(currentPlayer)}), бросьте кубики`;
         updateUI();
         drawBoard();
+
+        // --- ИСПРАВЛЕНИЕ: запускаем бота через setTimeout, чтобы текущий бот успел сбросить флаг ---
+        if (botMode && botPlayers.includes(currentPlayer) && gameActive) {
+            setTimeout(() => maybeBotTurn(), 50);
+        }
+    }
+
+    // ---------- Функции ботов ----------
+    function maybeBotTurn() {
+        if (botMode && botPlayers.includes(currentPlayer) && gameActive && !isBotThinking) {
+            botTurn();
+        }
+    }
+
+    function delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async function botTurn() {
+        if (!gameActive || isBotThinking) return;
+        if (!botPlayers.includes(currentPlayer)) return;
+        isBotThinking = true;
+        
+        await delay(400);
+        if (!gameActive) {
+            isBotThinking = false;
+            return;
+        }
+        
+        if (waitingForRoll) {
+            diceN = Math.floor(Math.random() * 6) + 1;
+            diceM = Math.floor(Math.random() * 6) + 1;
+            waitingForRoll = false;
+            selectionMode = true;
+            firstCorner = null;
+            currentMsg = `🎲 Бот ${getPlayerName(currentPlayer)} выбросил ${diceN} и ${diceM}.`;
+            updateUI();
+            drawBoard();
+            await delay(300);
+        }
+        
+        const move = getBestMove(currentPlayer, diceN, diceM);
+        if (move) {
+            const success = tryMakeMove(move.x, move.y, move.w, move.h);
+            if (success) {
+                currentMsg = `🤖 Бот ${getPlayerName(currentPlayer)} сделал ход.`;
+                updateUI();
+                drawBoard();
+                await delay(500);
+                finishMove();
+            } else {
+                currentMsg = `🤖 Бот ${getPlayerName(currentPlayer)} не смог сходить, пропускает.`;
+                updateUI();
+                await delay(500);
+                skipTurn();
+            }
+        } else {
+            currentMsg = `🤖 Бот ${getPlayerName(currentPlayer)} не нашёл ходов, пропускает.`;
+            updateUI();
+            await delay(500);
+            skipTurn();
+        }
+        
+        isBotThinking = false;
+    }
+
+    function getBestMove(player, diceA, diceB) {
+        const possibleSizes = [[diceA, diceB]];
+        if (diceA !== diceB) possibleSizes.push([diceB, diceA]);
+        
+        let bestMove = null;
+        let bestScore = -Infinity;
+        
+        for (let [w, h] of possibleSizes) {
+            // Расширение на пустое место
+            for (let y = 0; y <= ROWS - h; y++) {
+                for (let x = 0; x <= COLS - w; x++) {
+                    if (isAreaFree(x, y, w, h)) {
+                        const tempRect = { x, y, w, h, owner: null };
+                        if (isAdjacentToPlayer(tempRect, player)) {
+                            let score = w * h;
+                            const killed = coversStartCell(x, y, w, h, player);
+                            if (killed && activePlayers.includes(killed)) {
+                                score += 10000;
+                            }
+                            if (score > bestScore) {
+                                bestScore = score;
+                                bestMove = { x, y, w, h };
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Захват существующего прямоугольника
+            for (let rect of rectangles) {
+                if (rect.owner === player) continue;
+                if (rect.w === w && rect.h === h) {
+                    if (isAdjacentToPlayer(rect, player)) {
+                        let score = rect.w * rect.h;
+                        if (rect.owner !== null) {
+                            score *= 2;
+                            const killed = coversStartCell(rect.x, rect.y, rect.w, rect.h, player);
+                            if (killed && activePlayers.includes(killed)) {
+                                score += 10000;
+                            }
+                        } else {
+                            score *= 1.5;
+                        }
+                        if (score > bestScore) {
+                            bestScore = score;
+                            bestMove = { x: rect.x, y: rect.y, w: rect.w, h: rect.h };
+                        }
+                    }
+                }
+            }
+        }
+        return bestMove;
     }
 
     function rollDice() {
         if(!gameActive) {
             currentMsg = "Игра окончена. Нажмите 'Новая игра'.";
+            updateUI();
+            return;
+        }
+        if (botMode && botPlayers.includes(currentPlayer)) {
+            currentMsg = "Сейчас ход бота, подождите...";
             updateUI();
             return;
         }
@@ -466,15 +580,16 @@
     }
 
     function skipTurn() {
-        if(!gameActive) {
+        if (!gameActive) {
             currentMsg = "Игра окончена. Нажмите 'Новая игра'.";
             updateUI();
             return;
         }
-        if(waitingForRoll) {
-            currentMsg = "Вы пропускаете ход, не бросая кубики";
+        // Убрана блокировка для ботов — теперь любой игрок может пропустить ход
+        if (waitingForRoll) {
+            currentMsg = "Ход пропущен (без броска кубиков)";
         } else {
-            currentMsg = "Ход пропущен (вы не разместили прямоугольник)";
+            currentMsg = "Ход пропущен (прямоугольник не размещён)";
         }
         finishMove();
     }
@@ -580,6 +695,11 @@
             updateUI();
             return;
         }
+        if (botMode && botPlayers.includes(currentPlayer)) {
+            currentMsg = "Сейчас ход бота, подождите...";
+            updateUI();
+            return;
+        }
         if(waitingForRoll) {
             currentMsg = "Сначала бросьте кубики (кнопка 'Бросить кубики')";
             updateUI();
@@ -630,7 +750,6 @@
     }
     
     function newGame() {
-        // Останавливаем старый таймер и сбрасываем
         stopTimer();
         timerSeconds = 0;
         updateTimerDisplay();
@@ -655,17 +774,23 @@
         updateUI();
         drawBoard();
         
-        // Запускаем таймер заново
         startTimer();
+        
+        // Если вдруг первый игрок бот (но у нас боты 2-4), не запускаем
     }
     
     function handleKey(e) {
         if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            if (!rollBtn.disabled && gameActive && waitingForRoll) rollDice();
+            if (!rollBtn.disabled && gameActive && waitingForRoll && !(botMode && botPlayers.includes(currentPlayer))) {
+                rollDice();
+            } else if (botMode && botPlayers.includes(currentPlayer)) {
+                currentMsg = "Сейчас ход бота, не мешайте!";
+                updateUI();
+            }
         } else if (e.key === 'Escape') {
             e.preventDefault();
-            if (selectionMode && firstCorner !== null) {
+            if (selectionMode && firstCorner !== null && !(botMode && botPlayers.includes(currentPlayer))) {
                 firstCorner = null;
                 currentMsg = `Выбор отменён. Можете начать заново для прямоугольника ${diceN}×${diceM}.`;
                 updateUI();
@@ -676,7 +801,7 @@
             newGame();
         } else if (e.key === 's' || e.key === 'S') {
             e.preventDefault();
-            if (gameActive) skipTurn();
+            if (gameActive && !(botMode && botPlayers.includes(currentPlayer))) skipTurn();
         }
     }
     
@@ -688,6 +813,5 @@
     resetBtnLeft.addEventListener('click', newGame);
     window.addEventListener('keydown', handleKey);
     
-    // Старт игры и таймера
     newGame();
 })();
