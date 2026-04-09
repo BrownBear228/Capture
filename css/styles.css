@@ -47,7 +47,6 @@ body {
     position: relative;
 }
 
-/* Иконка шестерёнки */
 .settings-gear {
     font-size: 2.5rem;
     cursor: pointer;
@@ -294,7 +293,6 @@ button:hover {
     flex-wrap: wrap;
 }
 
-/* Модальное окно */
 .modal {
     display: none;
     position: fixed;
@@ -313,7 +311,7 @@ button:hover {
     background: #2c2c2c;
     border-radius: 32px;
     width: 90%;
-    max-width: 450px;
+    max-width: 480px;
     box-shadow: 0 20px 35px black;
     animation: fadeIn 0.2s;
 }
@@ -351,11 +349,10 @@ button:hover {
 .settings-group {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
     color: #f0e6d2;
 }
 
-/* Радио-группы (стилизованные) */
 .radio-group {
     display: flex;
     flex-wrap: wrap;
@@ -389,7 +386,6 @@ button:hover {
     cursor: pointer;
 }
 
-/* Специально для группы цветовых режимов */
 .colorblind-group .radio-label {
     background: #2c2b26;
 }
@@ -398,11 +394,37 @@ button:hover {
     background: #5e4230;
 }
 
+input[type="range"] {
+    width: 100%;
+    cursor: pointer;
+    background: #5e4230;
+    height: 4px;
+    border-radius: 5px;
+    -webkit-appearance: none;
+}
+input[type="range"]:focus {
+    outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #ffd966;
+    cursor: pointer;
+    border: none;
+}
+.hint {
+    font-size: 0.75rem;
+    opacity: 0.8;
+}
+
 .custom-size-inputs {
     display: flex;
     gap: 10px;
     align-items: center;
     margin-top: 5px;
+    flex-wrap: wrap;
 }
 
 .custom-size-inputs input {
@@ -416,7 +438,11 @@ button:hover {
     width: 80px;
 }
 
-/* Переключатель (switch) для ботов */
+.warning-message {
+    width: 100%;
+    margin-top: 5px;
+}
+
 .switch {
     position: relative;
     display: inline-block;
