@@ -1,7 +1,8 @@
 (function(){
-    // ---------- ПАРАМЕТРЫ ПОЛЯ ----------
     let COLS = 39;
     let ROWS = 28;
+    let START_SIZE = 2;
+    let PLAYER_COUNT = 4;
     const CELL_SIZE = 20;
     let CANVAS_W = COLS * CELL_SIZE;
     let CANVAS_H = ROWS * CELL_SIZE;
@@ -38,16 +39,21 @@
     let botMode = true;
     let botPlayers = [2, 3, 4];
     let isBotThinking = false;
+    let simulationMode = false;
 
     let START_CELLS = {};
 
     function updateStartCells() {
-        START_CELLS = {
-            1: { x: 0, y: 0 },
-            2: { x: COLS-2, y: 0 },
-            3: { x: 0, y: ROWS-2 },
-            4: { x: COLS-2, y: ROWS-2 }
-        };
+        START_CELLS = {};
+        if (PLAYER_COUNT === 2) {
+            START_CELLS[1] = { x: 0, y: 0 };
+            START_CELLS[2] = { x: COLS - START_SIZE, y: ROWS - START_SIZE };
+        } else {
+            START_CELLS[1] = { x: 0, y: 0 };
+            START_CELLS[2] = { x: COLS - START_SIZE, y: 0 };
+            START_CELLS[3] = { x: 0, y: ROWS - START_SIZE };
+            START_CELLS[4] = { x: COLS - START_SIZE, y: ROWS - START_SIZE };
+        }
     }
 
     const canvas = document.getElementById('gameCanvas');
@@ -64,26 +70,72 @@
     const fieldSizeLabel = document.getElementById('fieldSizeLabel');
     const botsLabel = document.getElementById('botsLabel');
 
-    // Элементы настроек
     const settingsIcon = document.getElementById('settingsIcon');
     const settingsModal = document.getElementById('settingsModal');
     const closeModalSpan = document.querySelector('.close-modal');
     const cancelSettingsBtn = document.getElementById('cancelSettingsBtn');
     const applySettingsBtn = document.getElementById('applySettingsBtn');
     const botsToggle = document.getElementById('botsToggle');
+    const simulationToggle = document.getElementById('simulationToggle');
     const customSizeInputs = document.getElementById('customSizeInputs');
     const customCols = document.getElementById('customCols');
     const customRows = document.getElementById('customRows');
     const radioStandard = document.querySelector('input[value="standard"]');
     const radioCustom = document.querySelector('input[value="custom"]');
     const colorModeRadios = document.querySelectorAll('input[name="colorMode"]');
+    const playerCountRadios = document.querySelectorAll('input[name="playerCount"]');
+    const startSizeSlider = document.getElementById('startSizeSlider');
+    const startSizeValue = document.getElementById('startSizeValue');
+    const botsStatusText = document.getElementById('botsStatusText');
+    const sizeWarning = document.getElementById('sizeWarning');
+    const minFieldSizeSpan = document.getElementById('minFieldSizeSpan');
+    const minFieldSizeSpan2 = document.getElementById('minFieldSizeSpan2');
+
+    function updateControlUI() {
+        const isSimulation = simulationMode;
+        const isBotTurnNow = (botMode && botPlayers.includes(currentPlayer)) || simulationMode;
+        const isHumanControllable = !isSimulation && gameActive && !isBotTurnNow;
+        rollBtn.disabled = !isHumanControllable || waitingForRoll === false;
+        skipBtn.disabled = !isHumanControllable;
+        if (isSimulation) {
+            rollBtn.style.opacity = '0.5';
+            skipBtn.style.opacity = '0.5';
+        } else {
+            rollBtn.style.opacity = '1';
+            skipBtn.style.opacity = '1';
+        }
+    }
+
+    function getSelectedPlayerCount() {
+        for (let radio of playerCountRadios) if (radio.checked) return parseInt(radio.value, 10);
+        return 4;
+    }
 
     function getSelectedColorMode() {
-        for (let radio of colorModeRadios) {
-            if (radio.checked) return radio.value;
-        }
+        for (let radio of colorModeRadios) if (radio.checked) return radio.value;
         return 'normal';
     }
+
+    function updateMinFieldSizeWarning() {
+        const startSize = parseInt(startSizeSlider.value, 10);
+        const minDim = 2 * startSize + 6;
+        if (minFieldSizeSpan) minFieldSizeSpan.textContent = minDim;
+        if (minFieldSizeSpan2) minFieldSizeSpan2.textContent = minDim;
+        if (customCols && customRows) {
+            const colsVal = parseInt(customCols.value, 10);
+            const rowsVal = parseInt(customRows.value, 10);
+            if (!isNaN(colsVal) && !isNaN(rowsVal) && (colsVal < minDim || rowsVal < minDim)) {
+                sizeWarning.style.display = 'block';
+            } else {
+                sizeWarning.style.display = 'none';
+            }
+        }
+    }
+
+    startSizeSlider.addEventListener('input', () => {
+        startSizeValue.textContent = startSizeSlider.value;
+        updateMinFieldSizeWarning();
+    });
 
     function updateCanvasSize() {
         CANVAS_W = COLS * CELL_SIZE;
@@ -122,7 +174,8 @@
         const scores = computeScores();
         const neutralCells = getNeutralCellCount();
         let html = '';
-        for(let p = 1; p <= 4; p++) {
+        const playersToShow = PLAYER_COUNT === 2 ? [1,2] : [1,2,3,4];
+        for(let p of playersToShow) {
             const color = PLAYER_COLORS[p];
             const name = getPlayerName(p);
             const score = scores[p];
@@ -147,9 +200,9 @@
         msgArea.innerText = currentMsg;
         updateSideScores();
         turnCountDisplay.innerText = turnCounter;
+        updateControlUI();
     }
 
-    // --- Геометрические и игровые функции (без изменений) ---
     function areAdjacentByEdge(rect1, rect2) {
         const r1_left = rect1.x, r1_right = rect1.x + rect1.w - 1, r1_top = rect1.y, r1_bottom = rect1.y + rect1.h - 1;
         const r2_left = rect2.x, r2_right = rect2.x + rect2.w - 1, r2_top = rect2.y, r2_bottom = rect2.y + rect2.h - 1;
@@ -189,13 +242,60 @@
     }
 
     function redistributeTerritory(eliminatedPlayer, killerPlayer) {
-        const alivePlayers = activePlayers.filter(p => p !== eliminatedPlayer);
+        // 1. Запоминаем все территории живых игроков (до перераспределения)
+        const originalTerritories = {};
+        for (let p of activePlayers) {
+            if (p === eliminatedPlayer) continue;
+            originalTerritories[p] = rectangles.filter(r => r.owner === p);
+        }
+
+        // 2. Стартовые координаты выбывшего и других игроков
+        const eliminatedStart = START_CELLS[eliminatedPlayer];
+        const startPositions = {};
+        for (let p of activePlayers) {
+            if (p !== eliminatedPlayer && START_CELLS[p]) {
+                startPositions[p] = START_CELLS[p];
+            }
+        }
+
+        // 3. Для каждого прямоугольника выбывшего определяем нового владельца
         const eliminatedRects = rectangles.filter(r => r.owner === eliminatedPlayer);
         for (let rect of eliminatedRects) {
-            const adjacentTo = alivePlayers.filter(p => isAdjacentToPlayer(rect, p));
-            if (adjacentTo.length === 0) rect.owner = null;
-            else if (adjacentTo.includes(killerPlayer)) rect.owner = killerPlayer;
-            else rect.owner = adjacentTo[0];
+            // Определяем, какие живые игроки имеют прилегающую территорию (по исходным данным)
+            const adjacentPlayers = [];
+            for (let p of Object.keys(originalTerritories)) {
+                const playerId = parseInt(p, 10);
+                const hasAdjacent = originalTerritories[playerId].some(territory => areAdjacentByEdge(rect, territory));
+                if (hasAdjacent) adjacentPlayers.push(playerId);
+            }
+
+            if (adjacentPlayers.length === 0) {
+                // Никто не прилегает → нейтральная
+                rect.owner = null;
+            } else if (adjacentPlayers.includes(killerPlayer)) {
+                // Приоритет 1: убийца
+                rect.owner = killerPlayer;
+            } else {
+                // Приоритет 2: выбираем ближайшего по стартовой клетке
+                let bestPlayer = null;
+                let bestDistance = Infinity;
+                for (let p of adjacentPlayers) {
+                    const start = startPositions[p];
+                    if (!start) continue;
+                    // Евклидово расстояние (квадрат)
+                    const dx = start.x - eliminatedStart.x;
+                    const dy = start.y - eliminatedStart.y;
+                    const dist = dx * dx + dy * dy;
+                    if (dist < bestDistance) {
+                        bestDistance = dist;
+                        bestPlayer = p;
+                    } else if (dist === bestDistance && bestPlayer !== null && p < bestPlayer) {
+                        // При равном расстоянии выбираем игрока с меньшим номером
+                        bestPlayer = p;
+                    }
+                }
+                rect.owner = bestPlayer !== null ? bestPlayer : adjacentPlayers[0];
+            }
         }
     }
 
@@ -229,7 +329,7 @@
             for (let i = eliminatedOrder.length - 1; i >= 0; i--) rankings.push({ player: eliminatedOrder[i], place: eliminatedOrder.length - i + 1 });
         } else {
             const scores = computeScores();
-            let players = [1,2,3,4].filter(p => activePlayers.includes(p) || eliminatedOrder.includes(p));
+            let players = (PLAYER_COUNT === 2 ? [1,2] : [1,2,3,4]).filter(p => activePlayers.includes(p) || eliminatedOrder.includes(p));
             players.sort((a,b) => scores[b] - scores[a]);
             for (let i = 0; i < players.length; i++) rankings.push({ player: players[i], place: i+1 });
         }
@@ -272,17 +372,24 @@
         updateUI();
         if (!gameActive) return;
         let next = (currentPlayer % 4) + 1;
-        while (!activePlayers.includes(next)) { next = (next % 4) + 1; if (next === currentPlayer) break; }
+        if (PLAYER_COUNT === 2) {
+            next = currentPlayer === 1 ? 2 : 1;
+        } else {
+            while (!activePlayers.includes(next)) { next = (next % 4) + 1; if (next === currentPlayer) break; }
+        }
         currentPlayer = next;
         waitingForRoll = true; selectionMode = false; firstCorner = null; diceN = 0; diceM = 0;
         currentMsg = `${getPlayerName(currentPlayer)}, бросьте кубики`;
         updateUI(); drawBoard();
-        if (botMode && botPlayers.includes(currentPlayer) && gameActive) setTimeout(() => maybeBotTurn(), 50);
+        if ((botMode && botPlayers.includes(currentPlayer)) || simulationMode) {
+            setTimeout(() => maybeBotTurn(), 50);
+        }
     }
 
-    // --- Боты ---
     async function botTurn() {
-        if (!gameActive || isBotThinking || !botMode || !botPlayers.includes(currentPlayer)) return;
+        if (!gameActive || isBotThinking) return;
+        const isBot = (botMode && botPlayers.includes(currentPlayer)) || simulationMode;
+        if (!isBot) return;
         isBotThinking = true;
         await new Promise(r => setTimeout(r, 400));
         if (!gameActive) { isBotThinking = false; return; }
@@ -303,11 +410,15 @@
         } else {
             currentMsg = `🤖 ${getPlayerName(currentPlayer)} не может сходить, пропускает.`;
             updateUI(); await new Promise(r => setTimeout(r, 500));
-            skipTurn();
+            skipTurn(true); // true = вызов от бота
         }
         isBotThinking = false;
     }
-    function maybeBotTurn() { if (botMode && botPlayers.includes(currentPlayer) && gameActive && !isBotThinking) botTurn(); }
+
+    function maybeBotTurn() {
+        const isBot = (botMode && botPlayers.includes(currentPlayer)) || simulationMode;
+        if (gameActive && isBot && !isBotThinking) botTurn();
+    }
 
     function getBestMove(player, diceA, diceB) {
         const possibleSizes = [[diceA, diceB]]; if (diceA !== diceB) possibleSizes.push([diceB, diceA]);
@@ -328,6 +439,7 @@
 
     function rollDice() {
         if(!gameActive) return;
+        if (simulationMode) { currentMsg = "Режим симуляции: все игроки — боты. Вы не можете бросать кубики."; updateUI(); return; }
         if (botMode && botPlayers.includes(currentPlayer)) { currentMsg = "Сейчас ход бота..."; updateUI(); return; }
         if(!waitingForRoll) { currentMsg = "Вы уже бросили!"; updateUI(); return; }
         diceN = Math.floor(Math.random() * 6) + 1;
@@ -337,8 +449,16 @@
         updateUI(); drawBoard();
     }
 
-    function skipTurn() {
+    function skipTurn(fromBot = false) {
         if (!gameActive) return;
+        if (!fromBot) {
+            if (simulationMode) { currentMsg = "Режим симуляции: вы не можете пропускать ход ботов."; updateUI(); return; }
+            if (botMode && botPlayers.includes(currentPlayer)) {
+                currentMsg = "Сейчас ход бота, вы не можете пропустить его ход.";
+                updateUI();
+                return;
+            }
+        }
         currentMsg = "Ход пропущен";
         finishMove();
     }
@@ -359,11 +479,17 @@
             ctx.strokeStyle = '#000'; ctx.lineWidth = 2.5; ctx.strokeText(area.toString(), centerX, centerY);
             ctx.fillStyle = '#FFF'; ctx.fillText(area.toString(), centerX, centerY);
         }
-        if(selectionMode && firstCorner) { ctx.fillStyle = 'rgba(255,255,100,0.6)'; ctx.fillRect(firstCorner.x*CELL_SIZE, firstCorner.y*CELL_SIZE, CELL_SIZE, CELL_SIZE); ctx.strokeStyle = 'gold'; ctx.strokeRect(firstCorner.x*CELL_SIZE, firstCorner.y*CELL_SIZE, CELL_SIZE, CELL_SIZE); }
+        if(selectionMode && firstCorner && !simulationMode) {
+            ctx.fillStyle = 'rgba(255,255,100,0.6)';
+            ctx.fillRect(firstCorner.x*CELL_SIZE, firstCorner.y*CELL_SIZE, CELL_SIZE, CELL_SIZE);
+            ctx.strokeStyle = 'gold';
+            ctx.strokeRect(firstCorner.x*CELL_SIZE, firstCorner.y*CELL_SIZE, CELL_SIZE, CELL_SIZE);
+        }
     }
 
     let ghostX=-1,ghostY=-1;
     function onMouseMove(e) {
+        if (simulationMode) return;
         if (!selectionMode || firstCorner === null) { ghostX=-1; return; }
         const rectCanvas = canvas.getBoundingClientRect();
         const scaleX = canvas.width/rectCanvas.width, scaleY = canvas.height/rectCanvas.height;
@@ -382,6 +508,7 @@
 
     function handleCanvasClick(e) {
         if(!gameActive) return;
+        if (simulationMode) { currentMsg = "Режим симуляции: вы не можете взаимодействовать с полем."; updateUI(); return; }
         if (botMode && botPlayers.includes(currentPlayer)) { currentMsg = "Ход бота, подождите..."; updateUI(); return; }
         if(waitingForRoll) { currentMsg = "Сначала бросьте кубики!"; updateUI(); return; }
         if(!selectionMode) return;
@@ -398,45 +525,72 @@
         }
     }
 
-    // --- Управление цветами для дальтонизма ---
     function setColorPaletteForMode(mode) {
         PLAYER_COLORS = { ...BASE_PLAYER_COLORS };
         if (mode === 'protanopia' || mode === 'deuteranopia') {
-            PLAYER_COLORS[4] = '#c154c1'; // пурпурный вместо жёлтого
+            PLAYER_COLORS[4] = '#c154c1';
         }
-        // Для тританопии и normal оставляем жёлтый
     }
 
     function applyColorBlindMode(mode) {
         setColorPaletteForMode(mode);
-        document.body.style.filter = 'none'; // убираем фильтры, меняем палитру
+        document.body.style.filter = 'none';
     }
 
-    // --- Применение настроек и перезапуск ---
     function applySettingsAndRestart() {
         let newCols = COLS, newRows = ROWS;
+        const newStartSize = parseInt(startSizeSlider.value, 10);
+        const newPlayerCount = getSelectedPlayerCount();
+        const newSimulationMode = simulationToggle.checked;
+        const minFieldDim = 2 * newStartSize + 6;
+        
         if (radioCustom.checked) {
             let colsVal = parseInt(customCols.value, 10);
             let rowsVal = parseInt(customRows.value, 10);
-            if (isNaN(colsVal)) colsVal = 39;
-            if (isNaN(rowsVal)) rowsVal = 28;
-            colsVal = Math.min(100, Math.max(4, colsVal));
-            rowsVal = Math.min(100, Math.max(4, rowsVal));
+            if (isNaN(colsVal)) colsVal = Math.max(minFieldDim, 39);
+            if (isNaN(rowsVal)) rowsVal = Math.max(minFieldDim, 28);
+            colsVal = Math.min(100, Math.max(minFieldDim, colsVal));
+            rowsVal = Math.min(100, Math.max(minFieldDim, rowsVal));
             newCols = colsVal;
             newRows = rowsVal;
         } else {
-            newCols = 39;
-            newRows = 28;
+            newCols = Math.max(minFieldDim, 39);
+            newRows = Math.max(minFieldDim, 28);
         }
+        
         const newBotMode = botsToggle.checked;
-        if (newCols !== COLS || newRows !== ROWS) {
-            COLS = newCols;
-            ROWS = newRows;
-            updateCanvasSize();
-            updateStartCells();
+        COLS = newCols;
+        ROWS = newRows;
+        START_SIZE = newStartSize;
+        PLAYER_COUNT = newPlayerCount;
+        simulationMode = newSimulationMode;
+        
+        updateCanvasSize();
+        updateStartCells();
+        
+        if (simulationMode) {
+            botMode = true;
+            if (PLAYER_COUNT === 2) {
+                botPlayers = [1,2];
+                botsStatusText.innerText = "(режим симуляции: оба игрока боты)";
+            } else {
+                botPlayers = [1,2,3,4];
+                botsStatusText.innerText = "(режим симуляции: все игроки боты)";
+            }
+            botsToggle.disabled = true;
+            botsToggle.parentElement.style.opacity = '0.5';
+        } else {
+            botMode = newBotMode;
+            if (PLAYER_COUNT === 2) {
+                botPlayers = botMode ? [2] : [];
+                botsStatusText.innerText = botMode ? "(игрок 2 — бот)" : "(игроки оба живые)";
+            } else {
+                botPlayers = botMode ? [2,3,4] : [];
+                botsStatusText.innerText = botMode ? "(игроки 2,3,4 — боты)" : "(все игроки люди)";
+            }
+            botsToggle.disabled = false;
+            botsToggle.parentElement.style.opacity = '1';
         }
-        botMode = newBotMode;
-        botPlayers = botMode ? [2,3,4] : [];
         
         const colorMode = getSelectedColorMode();
         applyColorBlindMode(colorMode);
@@ -446,8 +600,7 @@
         settingsModal.style.display = "none";
     }
 
-    // --- Модальное окно ---
-    function openModal() { settingsModal.style.display = "flex"; }
+    function openModal() { settingsModal.style.display = "flex"; updateMinFieldSizeWarning(); }
     function closeModal() { settingsModal.style.display = "none"; }
     radioStandard.addEventListener('change', () => customSizeInputs.style.display = radioCustom.checked ? 'flex' : 'none');
     radioCustom.addEventListener('change', () => customSizeInputs.style.display = radioCustom.checked ? 'flex' : 'none');
@@ -457,22 +610,37 @@
     applySettingsBtn.addEventListener('click', applySettingsAndRestart);
     window.addEventListener('click', (e) => { if (e.target === settingsModal) closeModal(); });
     customSizeInputs.style.display = 'none';
+    customCols.addEventListener('input', updateMinFieldSizeWarning);
+    customRows.addEventListener('input', updateMinFieldSizeWarning);
 
     function newGame() {
         stopTimer(); timerSeconds = 0; updateTimerDisplay();
         rectangles = [];
-        rectangles.push({ owner: 1, x: 0, y: 0, w: 2, h: 2 });
-        rectangles.push({ owner: 2, x: COLS-2, y: 0, w: 2, h: 2 });
-        rectangles.push({ owner: 3, x: 0, y: ROWS-2, w: 2, h: 2 });
-        rectangles.push({ owner: 4, x: COLS-2, y: ROWS-2, w: 2, h: 2 });
-        currentPlayer = 1; waitingForRoll = true; selectionMode = false; firstCorner = null; diceN=0; diceM=0; turnCounter=0;
-        activePlayers = [1,2,3,4]; eliminatedOrder = []; gameActive = true;
-        currentMsg = "Новая игра! Бросьте кубики.";
-        rollBtn.disabled = false; skipBtn.disabled = false;
-        updateUI(); drawBoard();
+        const positions = PLAYER_COUNT === 2 ? [1,2] : [1,2,3,4];
+        for (let p of positions) {
+            const pos = START_CELLS[p];
+            if (pos) rectangles.push({ owner: p, x: pos.x, y: pos.y, w: START_SIZE, h: START_SIZE });
+        }
+        currentPlayer = 1;
+        waitingForRoll = true;
+        selectionMode = false;
+        firstCorner = null;
+        diceN = 0; diceM = 0;
+        turnCounter = 0;
+        activePlayers = [...positions];
+        eliminatedOrder = [];
+        gameActive = true;
+        currentMsg = simulationMode ? "Режим симуляции: наблюдение за игрой ботов." : "Новая игра! Бросьте кубики.";
+        rollBtn.disabled = false;
+        skipBtn.disabled = false;
+        updateUI();
+        drawBoard();
         startTimer();
-        fieldSizeLabel.innerText = (COLS===39 && ROWS===28) ? "Стандартное поле (39×28)" : `Кастомное поле (${COLS}×${ROWS})`;
-        botsLabel.innerText = botMode ? "🤖 Игра с ботами" : "👤 Игра без ботов";
+        fieldSizeLabel.innerText = (COLS===39 && ROWS===28 && START_SIZE===2 && PLAYER_COUNT===4 && !simulationMode) ? "Стандартное поле (39×28)" : `Поле ${COLS}×${ROWS}, старт ${START_SIZE}, игроков ${PLAYER_COUNT}${simulationMode ? ' [СИМУЛЯЦИЯ]' : ''}`;
+        botsLabel.innerText = simulationMode ? "🎬 Режим симуляции (все боты)" : (botMode ? "🤖 Игра с ботами" : "👤 Игра без ботов");
+        if (simulationMode || (botMode && botPlayers.includes(currentPlayer))) {
+            setTimeout(() => maybeBotTurn(), 100);
+        }
     }
 
     function init() {
@@ -484,12 +652,13 @@
         canvas.addEventListener('mousemove', onMouseMove);
         canvas.addEventListener('mouseleave', () => { ghostX = -1; drawBoard(); });
         rollBtn.addEventListener('click', rollDice);
-        skipBtn.addEventListener('click', skipTurn);
+        skipBtn.addEventListener('click', () => skipTurn(false));
         resetBtnLeft.addEventListener('click', () => newGame());
         window.addEventListener('keydown', (e) => {
+            if (simulationMode) return;
             if (e.key === 'Enter' && gameActive && waitingForRoll && !(botMode && botPlayers.includes(currentPlayer))) rollDice();
             else if (e.key === 'Escape' && selectionMode && firstCorner && !(botMode && botPlayers.includes(currentPlayer))) { firstCorner = null; currentMsg = "Выбор отменён"; updateUI(); drawBoard(); }
-            else if ((e.key === 's' || e.key === 'S') && gameActive && !(botMode && botPlayers.includes(currentPlayer))) skipTurn();
+            else if ((e.key === 's' || e.key === 'S') && gameActive && !(botMode && botPlayers.includes(currentPlayer))) skipTurn(false);
         });
     }
     init();
