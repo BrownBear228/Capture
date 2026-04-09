@@ -61,8 +61,8 @@
                     <label class="radio-label"><input type="radio" name="fieldSize" value="custom"> Кастомный</label>
                 </div>
                 <div id="customSizeInputs" class="custom-size-inputs" style="display: none;">
-                    <input type="number" id="customCols" min="4" max="100" value="39" step="1"> ×
-                    <input type="number" id="customRows" min="4" max="100" value="28" step="1">
+                    <input type="number" id="customCols" min="8" max="58" value="39" step="1"> ×
+                    <input type="number" id="customRows" min="8" max="31" value="28" step="1">
                     <div id="sizeWarning" class="warning-message" style="display: none; color: #ffaa66; font-size: 0.8rem;">Минимальный размер поля: <span id="minFieldSizeSpan">0</span>×<span id="minFieldSizeSpan2">0</span></div>
                 </div>
             </div>
@@ -95,6 +95,25 @@
         <div class="modal-footer">
             <button id="applySettingsBtn">Применить и перезапустить</button>
             <button id="cancelSettingsBtn">Отмена</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно результатов игры -->
+<div id="gameResultModal" class="modal result-modal">
+    <div class="modal-content result-modal-content">
+        <div class="modal-header">
+            <h3>🏁 Игра окончена 🏁</h3>
+            <span class="close-result-modal">&times;</span>
+        </div>
+        <div class="modal-body result-body">
+            <div id="resultWinnerBlock" class="winner-block"></div>
+            <div id="resultRankingsList" class="rankings-list"></div>
+            <div id="resultStats" class="result-stats"></div>
+        </div>
+        <div class="modal-footer">
+            <button id="resultNewGameBtn">🔄 Новая игра</button>
+            <button id="resultCloseBtn">Закрыть</button>
         </div>
     </div>
 </div>
