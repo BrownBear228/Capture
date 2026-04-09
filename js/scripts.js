@@ -316,29 +316,130 @@
         return true;
     }
 
-    function endGame(reason) {
+    // Добавляем ссылки на новые элементы в начале (после других объявлений)
+    const resultModal = document.getElementById('gameResultModal');
+    const closeResultModal = document.querySelector('.close-result-modal');
+    const resultNewGameBtn = document.getElementById('resultNewGameBtn');
+    const resultCloseBtn = document.getElementById('resultCloseBtn');
+
+    // Функция показа модального окна с результатами
+    function showGameResultsModal(rankings, reason, finalScores, totalTurns, gameTimeSeconds, neutralCount) {
+        // Заполняем данные
+        const winner = rankings[0];
+        const winnerColor = PLAYER_COLORS[winner.player];
+        const winnerBlock = document.getElementById('resultWinnerBlock');
+        winnerBlock.style.borderLeftColor = winnerColor;
+        winnerBlock.innerHTML = `
+            <div class="winner-name" style="color: ${winnerColor}">🏆 ${getPlayerName(winner.player)} 🏆</div>
+            <div class="winner-score">Счёт: ${finalScores[winner.player]}</div>
+        `;
+
+        const rankingsList = document.getElementById('resultRankingsList');
+        rankingsList.innerHTML = '<div style="font-weight: bold; margin-bottom: 8px;">📊 Итоговые места:</div>';
+        for (let r of rankings) {
+            const playerColor = PLAYER_COLORS[r.player];
+            rankingsList.innerHTML += `
+                <div class="ranking-item">
+                    <span class="rank-place">${r.place} место</span>
+                    <span class="rank-name" style="color: ${playerColor}">${getPlayerName(r.player)}</span>
+                    <span class="rank-score">${finalScores[r.player]} очков</span>
+                </div>
+            `;
+        }
+
+        // Статистика
+        const statsDiv = document.getElementById('resultStats');
+        const minutes = Math.floor(gameTimeSeconds / 60);
+        const seconds = gameTimeSeconds % 60;
+        const timeStr = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        statsDiv.innerHTML = `
+            <div class="stat-card">
+                <div class="stat-label">⏱️ Время игры</div>
+                <div class="stat-value">${timeStr}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">🎲 Всего ходов</div>
+                <div class="stat-value">${totalTurns}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">⚪ Нейтральных клеток</div>
+                <div class="stat-value">${neutralCount}</div>
+            </div>
+        `;
+
+        resultModal.style.display = 'flex';
+    }
+
+    function isTwoThirdsDominance() {
+        const totalCells = COLS * ROWS;
+        const scores = computeScores();
+        for (let p of activePlayers) {
+            if (scores[p] >= (2 / 3) * totalCells) {
+                return p; // возвращает победителя
+            }
+        }
+        return null;
+    }
+
+    // Закрытие модального окна результатов
+    function closeResultModalFunc() {
+        resultModal.style.display = 'none';
+    }
+
+    // Новая игра из модального окна
+    function restartFromResultModal() {
+        closeResultModalFunc();
+        newGame(); // существующая функция перезапуска
+    }
+
+    // Переопределяем endGame
+    function endGame(reason, winnerPlayer = null) {
         if (!gameActive) return;
         gameActive = false;
         stopTimer();
-        rollBtn.disabled = true;
-        skipBtn.disabled = true;
+        const finalScores = computeScores();
+        const neutralCount = getNeutralCellCount();
+        const totalTurns = turnCounter;
+        const gameTime = timerSeconds;
+
         let rankings = [];
-        if (reason === 'elimination') {
+        if (reason === 'dominance') {
+            // победитель тот, кто захватил 2/3 площади
+            rankings.push({ player: winnerPlayer, place: 1 });
+            let remaining = activePlayers.filter(p => p !== winnerPlayer);
+            // остальные сортируем по убыванию очков
+            remaining.sort((a,b) => finalScores[b] - finalScores[a]);
+            for (let i = 0; i < remaining.length; i++) {
+                rankings.push({ player: remaining[i], place: i+2 });
+            }
+        } else if (reason === 'elimination') {
+            // без изменений
             const winner = activePlayers[0];
             rankings.push({ player: winner, place: 1 });
-            for (let i = eliminatedOrder.length - 1; i >= 0; i--) rankings.push({ player: eliminatedOrder[i], place: eliminatedOrder.length - i + 1 });
-        } else {
-            const scores = computeScores();
+            for (let i = eliminatedOrder.length - 1; i >= 0; i--) {
+                rankings.push({ player: eliminatedOrder[i], place: eliminatedOrder.length - i + 1 });
+            }
+        } else { // 'full' или другой
             let players = (PLAYER_COUNT === 2 ? [1,2] : [1,2,3,4]).filter(p => activePlayers.includes(p) || eliminatedOrder.includes(p));
-            players.sort((a,b) => scores[b] - scores[a]);
-            for (let i = 0; i < players.length; i++) rankings.push({ player: players[i], place: i+1 });
+            players.sort((a,b) => finalScores[b] - finalScores[a]);
+            for (let i = 0; i < players.length; i++) {
+                rankings.push({ player: players[i], place: i+1 });
+            }
         }
-        let message = "🏁 ИГРА ОКОНЧЕНА 🏁\n";
-        for (let r of rankings) message += `${r.place} место: ${getPlayerName(r.player)}\n`;
-        currentMsg = message;
+        // показать модальное окно (как раньше)
+        showGameResultsModal(rankings, reason, finalScores, totalTurns, gameTime, neutralCount);
+        currentMsg = "Игра окончена. Результаты в окне.";
         updateUI();
-        alert(message);
+        drawBoard();
     }
+
+    // Привязываем обработчики для модального окна результатов
+    closeResultModal.addEventListener('click', closeResultModalFunc);
+    resultCloseBtn.addEventListener('click', closeResultModalFunc);
+    resultNewGameBtn.addEventListener('click', restartFromResultModal);
+    window.addEventListener('click', (e) => {
+        if (e.target === resultModal) closeResultModalFunc();
+    });
 
     function tryMakeMove(x, y, w, h) {
         if (!isValidSize(w, h, diceN, diceM)) { currentMsg = `❌ Ошибка: нужен прямоугольник ${diceN}×${diceM}`; updateUI(); return false; }
@@ -367,6 +468,12 @@
 
     function finishMove() {
         drawBoard();
+        if (isFieldFullyOccupied() && gameActive) { endGame('full'); return; }
+        const dominatingPlayer = isTwoThirdsDominance();
+        if (dominatingPlayer !== null && gameActive) {
+            endGame('dominance', dominatingPlayer);
+            return;
+        }
         if (isFieldFullyOccupied() && gameActive) { endGame('full'); return; }
         turnCounter++;
         updateUI();
@@ -549,8 +656,8 @@
             let rowsVal = parseInt(customRows.value, 10);
             if (isNaN(colsVal)) colsVal = Math.max(minFieldDim, 39);
             if (isNaN(rowsVal)) rowsVal = Math.max(minFieldDim, 28);
-            colsVal = Math.min(100, Math.max(minFieldDim, colsVal));
-            rowsVal = Math.min(100, Math.max(minFieldDim, rowsVal));
+            colsVal = Math.min(58, Math.max(minFieldDim, colsVal));
+            rowsVal = Math.min(31, Math.max(minFieldDim, rowsVal));
             newCols = colsVal;
             newRows = rowsVal;
         } else {
