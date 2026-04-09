@@ -310,6 +310,7 @@ button:hover {
 .modal-content {
     background: #2c2c2c;
     border-radius: 32px;
+    overflow: hidden;
     width: 90%;
     max-width: 480px;
     box-shadow: 0 20px 35px black;
@@ -496,6 +497,131 @@ input:checked + .slider:before {
     border-top: 1px solid #5e4230;
 }
 
+/* Модальное окно результатов — исправление цветов текста */
+.result-modal .result-modal-content {
+    max-width: 500px;
+    background: #2c2c2c;
+    border-radius: 32px;
+    animation: fadeIn 0.2s;
+    color: #f0e6d2; /* базовый светлый цвет для всего текста внутри */
+}
+
+.winner-block {
+    background: #1e1e1e;
+    border-radius: 24px;
+    padding: 16px;
+    text-align: center;
+    margin-bottom: 20px;
+    border-left: 6px solid;
+    color: #f0e6d2;
+}
+.winner-name {
+    font-size: 1.6rem;
+    font-weight: bold;
+}
+.winner-score {
+    font-size: 1.2rem;
+    color: #ffd966; /* жёлтый для счёта */
+}
+
+.rankings-list {
+    background: #1e1e1e;
+    border-radius: 24px;
+    padding: 12px;
+    margin-bottom: 20px;
+    color: #f0e6d2;
+}
+.rankings-list > div:first-child {
+    color: #ffd966;
+    margin-bottom: 8px;
+}
+.ranking-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-bottom: 1px solid #5e4230;
+    font-size: 1rem;
+    color: #f0e6d2;
+}
+.ranking-item:last-child {
+    border-bottom: none;
+}
+.rank-place {
+    font-weight: bold;
+    color: #ffd966;
+}
+.rank-name {
+    flex: 1;
+    margin-left: 12px;
+    color: #f0e6d2;
+}
+.rank-score {
+    font-weight: bold;
+    color: #ffd966;
+}
+
+.result-stats {
+    background: #1e1e1e;
+    border-radius: 24px;
+    padding: 12px;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.stat-card {
+    background: #2c2b26;
+    padding: 8px 12px;
+    border-radius: 20px;
+    text-align: center;
+    flex: 1;
+    color: #f0e6d2;
+}
+.stat-label {
+    font-size: 0.8rem;
+    opacity: 0.9;
+    color: #ccccaa;
+}
+.stat-value {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #ffd966;
+}
+
+/* Заголовок модального окна */
+.result-modal .modal-header {
+    background: #2c2c2c;
+    border-bottom: 1px solid #5e4230;
+    color: #ffd966;
+}
+.result-modal .modal-header h3 {
+    color: #ffd966;
+}
+.result-modal .close-result-modal {
+    color: #f0e6d2;
+}
+.result-modal .close-result-modal:hover {
+    color: #ffa500;
+}
+
+/* Кнопки в футере */
+.result-modal .modal-footer button {
+    background: #3b2a1f;
+    border: none;
+    color: #f7e5c2;
+    font-size: 1rem;
+    font-weight: bold;
+    padding: 8px 18px;
+    border-radius: 40px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.result-modal .modal-footer button:hover {
+    background: #5e4230;
+    transform: scale(0.97);
+    color: white;
+}
+
 @keyframes fadeIn {
     from { opacity: 0; transform: scale(0.95);}
     to { opacity: 1; transform: scale(1);}
@@ -536,3 +662,5 @@ input:checked + .slider:before {
         text-align: center;
     }
 }
+
+
