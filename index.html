@@ -10,9 +10,7 @@
 <div class="game-wrapper">
     <div class="game-container">
         <div class="game-top-row">
-            <!-- Иконка настроек (шестерёнка) -->
             <div class="settings-gear" id="settingsIcon">⚙️</div>
-            
             <div class="left-panel">
                 <div class="score-panel" id="sideScorePanel"></div>
                 <div class="turn-counter-box">Ход: <span id="turnCountDisplay">0</span></div>
@@ -21,13 +19,10 @@
             </div>
             <canvas id="gameCanvas" width="780" height="560" role="img" aria-label="Игровое поле"></canvas>
         </div>
-        
-        <!-- Информация под canvas -->
         <div class="canvas-info">
             <div class="field-size-label" id="fieldSizeLabel">Стандартное поле (39×28)</div>
             <div class="bots-label" id="botsLabel">🤖 Игра с ботами</div>
         </div>
-        
         <div class="info-panel">
             <div class="turn-indicator" id="turnText">Игрок 1 (ход)</div>
             <div class="dice-area" id="diceDisplay">🎲  ?  ?  🎲</div>
@@ -40,7 +35,6 @@
     </div>
 </div>
 
-<!-- Модальное окно настроек -->
 <div id="settingsModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
@@ -48,7 +42,18 @@
             <span class="close-modal">&times;</span>
         </div>
         <div class="modal-body">
-            <!-- Размер поля -->
+            <div class="settings-group">
+                <label>Количество игроков:</label>
+                <div class="radio-group">
+                    <label class="radio-label"><input type="radio" name="playerCount" value="2"> 2 игрока</label>
+                    <label class="radio-label"><input type="radio" name="playerCount" value="4" checked> 4 игрока</label>
+                </div>
+            </div>
+            <div class="settings-group">
+                <label>Размер стартовых квадратов: <span id="startSizeValue">2</span></label>
+                <input type="range" id="startSizeSlider" min="1" max="6" step="1" value="2">
+                <div class="hint">(от 1 до 6, влияет на мин. размер поля)</div>
+            </div>
             <div class="settings-group">
                 <label>Размер поля:</label>
                 <div class="radio-group">
@@ -58,10 +63,9 @@
                 <div id="customSizeInputs" class="custom-size-inputs" style="display: none;">
                     <input type="number" id="customCols" min="4" max="100" value="39" step="1"> ×
                     <input type="number" id="customRows" min="4" max="100" value="28" step="1">
+                    <div id="sizeWarning" class="warning-message" style="display: none; color: #ffaa66; font-size: 0.8rem;">Минимальный размер поля: <span id="minFieldSizeSpan">0</span>×<span id="minFieldSizeSpan2">0</span></div>
                 </div>
             </div>
-            
-            <!-- Боты -->
             <div class="settings-group">
                 <label for="botsToggle">🤖 Режим ботов:</label>
                 <label class="switch">
@@ -70,8 +74,14 @@
                 </label>
                 <span id="botsStatusText">(игроки 2,3,4 — боты)</span>
             </div>
-            
-            <!-- Цветовые режимы для дальтонизма (стилизованные радио) -->
+            <div class="settings-group">
+                <label for="simulationToggle">🎬 Режим симуляции (все игроки — боты):</label>
+                <label class="switch">
+                    <input type="checkbox" id="simulationToggle">
+                    <span class="slider round"></span>
+                </label>
+                <div class="hint">(включите для наблюдения за игрой ботов)</div>
+            </div>
             <div class="settings-group">
                 <label>Цветовой режим:</label>
                 <div class="radio-group colorblind-group">
