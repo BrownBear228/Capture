@@ -19,6 +19,7 @@
     const GRID_COLOR = '#c0b9a4';
     const RECT_BORDER = '#000000';
     const GHOST_STYLE = 'rgba(255, 255, 200, 0.4)';
+    const PREDEFINED_GHOST_STYLE = 'rgba(100, 200, 255, 0.5)';
 
     let rectangles = [];
     let currentPlayer = 1;
@@ -40,6 +41,12 @@
     let botPlayers = [2, 3, 4];
     let isBotThinking = false;
     let simulationMode = false;
+
+    let gameMode = 'predefined'; // 'classic' or 'predefined'
+
+    // Для режима с готовым прямоугольником
+    let placementActive = false;
+    let currentShape = { x: 0, y: 0, w: 0, h: 0 };
 
     let START_CELLS = {};
 
@@ -69,6 +76,7 @@
     const timerDisplay = document.getElementById('timerDisplay');
     const fieldSizeLabel = document.getElementById('fieldSizeLabel');
     const botsLabel = document.getElementById('botsLabel');
+    const rotateHint = document.getElementById('rotateHint');
 
     const settingsIcon = document.getElementById('settingsIcon');
     const settingsModal = document.getElementById('settingsModal');
@@ -90,6 +98,7 @@
     const sizeWarning = document.getElementById('sizeWarning');
     const minFieldSizeSpan = document.getElementById('minFieldSizeSpan');
     const minFieldSizeSpan2 = document.getElementById('minFieldSizeSpan2');
+    const gameModeRadios = document.querySelectorAll('input[name="gameMode"]');
 
     function updateControlUI() {
         const isSimulation = simulationMode;
@@ -114,6 +123,11 @@
     function getSelectedColorMode() {
         for (let radio of colorModeRadios) if (radio.checked) return radio.value;
         return 'normal';
+    }
+
+    function getSelectedGameMode() {
+        for (let radio of gameModeRadios) if (radio.checked) return radio.value;
+        return 'predefined';
     }
 
     function updateMinFieldSizeWarning() {
@@ -201,6 +215,13 @@
         updateSideScores();
         turnCountDisplay.innerText = turnCounter;
         updateControlUI();
+
+        // Управление подсказкой вращения
+        if (gameMode === 'predefined' && placementActive && !waitingForRoll && !simulationMode && !(botMode && botPlayers.includes(currentPlayer))) {
+            rotateHint.style.display = 'inline-block';
+        } else {
+            rotateHint.style.display = 'none';
+        }
     }
 
     function areAdjacentByEdge(rect1, rect2) {
@@ -242,14 +263,12 @@
     }
 
     function redistributeTerritory(eliminatedPlayer, killerPlayer) {
-        // 1. Запоминаем все территории живых игроков (до перераспределения)
         const originalTerritories = {};
         for (let p of activePlayers) {
             if (p === eliminatedPlayer) continue;
             originalTerritories[p] = rectangles.filter(r => r.owner === p);
         }
 
-        // 2. Стартовые координаты выбывшего и других игроков
         const eliminatedStart = START_CELLS[eliminatedPlayer];
         const startPositions = {};
         for (let p of activePlayers) {
@@ -258,10 +277,8 @@
             }
         }
 
-        // 3. Для каждого прямоугольника выбывшего определяем нового владельца
         const eliminatedRects = rectangles.filter(r => r.owner === eliminatedPlayer);
         for (let rect of eliminatedRects) {
-            // Определяем, какие живые игроки имеют прилегающую территорию (по исходным данным)
             const adjacentPlayers = [];
             for (let p of Object.keys(originalTerritories)) {
                 const playerId = parseInt(p, 10);
@@ -270,19 +287,15 @@
             }
 
             if (adjacentPlayers.length === 0) {
-                // Никто не прилегает → нейтральная
                 rect.owner = null;
             } else if (adjacentPlayers.includes(killerPlayer)) {
-                // Приоритет 1: убийца
                 rect.owner = killerPlayer;
             } else {
-                // Приоритет 2: выбираем ближайшего по стартовой клетке
                 let bestPlayer = null;
                 let bestDistance = Infinity;
                 for (let p of adjacentPlayers) {
                     const start = startPositions[p];
                     if (!start) continue;
-                    // Евклидово расстояние (квадрат)
                     const dx = start.x - eliminatedStart.x;
                     const dy = start.y - eliminatedStart.y;
                     const dist = dx * dx + dy * dy;
@@ -290,7 +303,6 @@
                         bestDistance = dist;
                         bestPlayer = p;
                     } else if (dist === bestDistance && bestPlayer !== null && p < bestPlayer) {
-                        // При равном расстоянии выбираем игрока с меньшим номером
                         bestPlayer = p;
                     }
                 }
@@ -316,15 +328,12 @@
         return true;
     }
 
-    // Добавляем ссылки на новые элементы в начале (после других объявлений)
     const resultModal = document.getElementById('gameResultModal');
     const closeResultModal = document.querySelector('.close-result-modal');
     const resultNewGameBtn = document.getElementById('resultNewGameBtn');
     const resultCloseBtn = document.getElementById('resultCloseBtn');
 
-    // Функция показа модального окна с результатами
     function showGameResultsModal(rankings, reason, finalScores, totalTurns, gameTimeSeconds, neutralCount) {
-        // Заполняем данные
         const winner = rankings[0];
         const winnerColor = PLAYER_COLORS[winner.player];
         const winnerBlock = document.getElementById('resultWinnerBlock');
@@ -347,7 +356,6 @@
             `;
         }
 
-        // Статистика
         const statsDiv = document.getElementById('resultStats');
         const minutes = Math.floor(gameTimeSeconds / 60);
         const seconds = gameTimeSeconds % 60;
@@ -375,24 +383,21 @@
         const scores = computeScores();
         for (let p of activePlayers) {
             if (scores[p] >= (2 / 3) * totalCells) {
-                return p; // возвращает победителя
+                return p;
             }
         }
         return null;
     }
 
-    // Закрытие модального окна результатов
     function closeResultModalFunc() {
         resultModal.style.display = 'none';
     }
 
-    // Новая игра из модального окна
     function restartFromResultModal() {
         closeResultModalFunc();
-        newGame(); // существующая функция перезапуска
+        newGame();
     }
 
-    // Переопределяем endGame
     function endGame(reason, winnerPlayer = null) {
         if (!gameActive) return;
         gameActive = false;
@@ -404,36 +409,31 @@
 
         let rankings = [];
         if (reason === 'dominance') {
-            // победитель тот, кто захватил 2/3 площади
             rankings.push({ player: winnerPlayer, place: 1 });
             let remaining = activePlayers.filter(p => p !== winnerPlayer);
-            // остальные сортируем по убыванию очков
             remaining.sort((a,b) => finalScores[b] - finalScores[a]);
             for (let i = 0; i < remaining.length; i++) {
                 rankings.push({ player: remaining[i], place: i+2 });
             }
         } else if (reason === 'elimination') {
-            // без изменений
             const winner = activePlayers[0];
             rankings.push({ player: winner, place: 1 });
             for (let i = eliminatedOrder.length - 1; i >= 0; i--) {
                 rankings.push({ player: eliminatedOrder[i], place: eliminatedOrder.length - i + 1 });
             }
-        } else { // 'full' или другой
+        } else {
             let players = (PLAYER_COUNT === 2 ? [1,2] : [1,2,3,4]).filter(p => activePlayers.includes(p) || eliminatedOrder.includes(p));
             players.sort((a,b) => finalScores[b] - finalScores[a]);
             for (let i = 0; i < players.length; i++) {
                 rankings.push({ player: players[i], place: i+1 });
             }
         }
-        // показать модальное окно (как раньше)
         showGameResultsModal(rankings, reason, finalScores, totalTurns, gameTime, neutralCount);
         currentMsg = "Игра окончена. Результаты в окне.";
         updateUI();
         drawBoard();
     }
 
-    // Привязываем обработчики для модального окна результатов
     closeResultModal.addEventListener('click', closeResultModalFunc);
     resultCloseBtn.addEventListener('click', closeResultModalFunc);
     resultNewGameBtn.addEventListener('click', restartFromResultModal);
@@ -485,12 +485,24 @@
             while (!activePlayers.includes(next)) { next = (next % 4) + 1; if (next === currentPlayer) break; }
         }
         currentPlayer = next;
-        waitingForRoll = true; selectionMode = false; firstCorner = null; diceN = 0; diceM = 0;
+        waitingForRoll = true;
+        selectionMode = false;
+        firstCorner = null;
+        placementActive = false;
+        diceN = 0; diceM = 0;
         currentMsg = `${getPlayerName(currentPlayer)}, бросьте кубики`;
         updateUI(); drawBoard();
         if ((botMode && botPlayers.includes(currentPlayer)) || simulationMode) {
             setTimeout(() => maybeBotTurn(), 50);
         }
+    }
+
+    function constrainShapePosition() {
+        if (!currentShape) return;
+        let maxX = COLS - currentShape.w;
+        let maxY = ROWS - currentShape.h;
+        currentShape.x = Math.min(Math.max(0, currentShape.x), maxX);
+        currentShape.y = Math.min(Math.max(0, currentShape.y), maxY);
     }
 
     async function botTurn() {
@@ -503,7 +515,10 @@
         if (waitingForRoll) {
             diceN = Math.floor(Math.random() * 6) + 1;
             diceM = Math.floor(Math.random() * 6) + 1;
-            waitingForRoll = false; selectionMode = true; firstCorner = null;
+            waitingForRoll = false;
+            selectionMode = false;
+            firstCorner = null;
+            placementActive = false;
             currentMsg = `🎲 ${getPlayerName(currentPlayer)} (бот) выбросил ${diceN} и ${diceM}.`;
             updateUI(); drawBoard();
             await new Promise(r => setTimeout(r, 300));
@@ -517,7 +532,7 @@
         } else {
             currentMsg = `🤖 ${getPlayerName(currentPlayer)} не может сходить, пропускает.`;
             updateUI(); await new Promise(r => setTimeout(r, 500));
-            skipTurn(true); // true = вызов от бота
+            skipTurn(true);
         }
         isBotThinking = false;
     }
@@ -551,9 +566,63 @@
         if(!waitingForRoll) { currentMsg = "Вы уже бросили!"; updateUI(); return; }
         diceN = Math.floor(Math.random() * 6) + 1;
         diceM = Math.floor(Math.random() * 6) + 1;
-        waitingForRoll = false; selectionMode = true; firstCorner = null;
-        currentMsg = `🎲 Выпало ${diceN} и ${diceM}. Кликните на поле, чтобы выбрать прямоугольник.`;
+        waitingForRoll = false;
+
+        if (gameMode === 'classic') {
+            selectionMode = true;
+            firstCorner = null;
+            placementActive = false;
+            currentMsg = `🎲 Выпало ${diceN} и ${diceM}. Кликните на поле, чтобы выбрать прямоугольник.`;
+        } else { // predefined mode
+            selectionMode = false;
+            firstCorner = null;
+            placementActive = true;
+            currentShape = {
+                x: 0,
+                y: 0,
+                w: diceN,
+                h: diceM
+            };
+            let placed = false;
+            for (let y = 0; y <= ROWS - currentShape.h && !placed; y++) {
+                for (let x = 0; x <= COLS - currentShape.w; x++) {
+                    if (isAreaFree(x, y, currentShape.w, currentShape.h) && isAdjacentToPlayer({x,y,w:currentShape.w,h:currentShape.h,owner:null}, currentPlayer)) {
+                        currentShape.x = x;
+                        currentShape.y = y;
+                        placed = true;
+                        break;
+                    }
+                }
+            }
+            if (!placed) {
+                currentShape.x = 0;
+                currentShape.y = 0;
+                constrainShapePosition();
+            }
+            currentMsg = `🎲 Выпало ${diceN} и ${diceM}. Перемещайте прямоугольник мышью, вращайте клавишей R. Кликните для размещения.`;
+        }
         updateUI(); drawBoard();
+    }
+
+    function rotateShape() {
+        if (!placementActive || waitingForRoll || simulationMode) return;
+        if (botMode && botPlayers.includes(currentPlayer)) return;
+        let newW = currentShape.h;
+        let newH = currentShape.w;
+        let maxX = COLS - newW;
+        let maxY = ROWS - newH;
+        let newX = Math.min(currentShape.x, maxX);
+        let newY = Math.min(currentShape.y, maxY);
+        if (newX < 0) newX = 0;
+        if (newY < 0) newY = 0;
+        currentShape.w = newW;
+        currentShape.h = newH;
+        currentShape.x = newX;
+        currentShape.y = newY;
+        constrainShapePosition();
+        currentMsg = `Прямоугольник повёрнут: ${currentShape.w}×${currentShape.h}`;
+        updateUI();
+        drawBoard();
     }
 
     function skipTurn(fromBot = false) {
@@ -586,31 +655,58 @@
             ctx.strokeStyle = '#000'; ctx.lineWidth = 2.5; ctx.strokeText(area.toString(), centerX, centerY);
             ctx.fillStyle = '#FFF'; ctx.fillText(area.toString(), centerX, centerY);
         }
-        if(selectionMode && firstCorner && !simulationMode) {
-            ctx.fillStyle = 'rgba(255,255,100,0.6)';
-            ctx.fillRect(firstCorner.x*CELL_SIZE, firstCorner.y*CELL_SIZE, CELL_SIZE, CELL_SIZE);
-            ctx.strokeStyle = 'gold';
-            ctx.strokeRect(firstCorner.x*CELL_SIZE, firstCorner.y*CELL_SIZE, CELL_SIZE, CELL_SIZE);
+
+        if (!simulationMode && gameActive) {
+            if (gameMode === 'classic' && selectionMode && firstCorner && !placementActive) {
+                ctx.fillStyle = 'rgba(255,255,100,0.6)';
+                ctx.fillRect(firstCorner.x*CELL_SIZE, firstCorner.y*CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                ctx.strokeStyle = 'gold';
+                ctx.strokeRect(firstCorner.x*CELL_SIZE, firstCorner.y*CELL_SIZE, CELL_SIZE, CELL_SIZE);
+            } else if (gameMode === 'predefined' && placementActive && !waitingForRoll && currentShape && currentShape.w > 0 && currentShape.h > 0) {
+                ctx.fillStyle = PREDEFINED_GHOST_STYLE;
+                ctx.fillRect(currentShape.x*CELL_SIZE, currentShape.y*CELL_SIZE, currentShape.w*CELL_SIZE, currentShape.h*CELL_SIZE);
+                ctx.strokeStyle = '#00ffff';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(currentShape.x*CELL_SIZE, currentShape.y*CELL_SIZE, currentShape.w*CELL_SIZE, currentShape.h*CELL_SIZE);
+            }
         }
     }
 
     let ghostX=-1,ghostY=-1;
     function onMouseMove(e) {
         if (simulationMode) return;
-        if (!selectionMode || firstCorner === null) { ghostX=-1; return; }
         const rectCanvas = canvas.getBoundingClientRect();
         const scaleX = canvas.width/rectCanvas.width, scaleY = canvas.height/rectCanvas.height;
-        let cellX = Math.floor((e.clientX - rectCanvas.left)*scaleX/CELL_SIZE), cellY = Math.floor((e.clientY - rectCanvas.top)*scaleY/CELL_SIZE);
-        cellX = Math.min(Math.max(0,cellX), COLS-1); cellY = Math.min(Math.max(0,cellY), ROWS-1);
-        ghostX=cellX; ghostY=cellY;
-        drawBoard();
-        let left = Math.min(firstCorner.x, ghostX), right = Math.max(firstCorner.x, ghostX), top = Math.min(firstCorner.y, ghostY), bottom = Math.max(firstCorner.y, ghostY);
-        let width = right-left+1, height = bottom-top+1;
-        let isValid = isValidSize(width, height, diceN, diceM);
-        ctx.fillStyle = isValid ? GHOST_STYLE : 'rgba(255,80,80,0.3)';
-        ctx.fillRect(left*CELL_SIZE, top*CELL_SIZE, width*CELL_SIZE, height*CELL_SIZE);
-        ctx.strokeStyle = isValid ? '#ffff00' : '#ff0000';
-        ctx.strokeRect(left*CELL_SIZE, top*CELL_SIZE, width*CELL_SIZE, height*CELL_SIZE);
+        let cellX = Math.floor((e.clientX - rectCanvas.left)*scaleX/CELL_SIZE);
+        let cellY = Math.floor((e.clientY - rectCanvas.top)*scaleY/CELL_SIZE);
+        cellX = Math.min(Math.max(0,cellX), COLS-1);
+        cellY = Math.min(Math.max(0,cellY), ROWS-1);
+
+        if (gameMode === 'classic') {
+            if (!selectionMode || firstCorner === null) { ghostX=-1; drawBoard(); return; }
+            ghostX=cellX; ghostY=cellY;
+            drawBoard();
+            let left = Math.min(firstCorner.x, ghostX), right = Math.max(firstCorner.x, ghostX), top = Math.min(firstCorner.y, ghostY), bottom = Math.max(firstCorner.y, ghostY);
+            let width = right-left+1, height = bottom-top+1;
+            let isValid = isValidSize(width, height, diceN, diceM);
+            ctx.fillStyle = isValid ? GHOST_STYLE : 'rgba(255,80,80,0.3)';
+            ctx.fillRect(left*CELL_SIZE, top*CELL_SIZE, width*CELL_SIZE, height*CELL_SIZE);
+            ctx.strokeStyle = isValid ? '#ffff00' : '#ff0000';
+            ctx.strokeRect(left*CELL_SIZE, top*CELL_SIZE, width*CELL_SIZE, height*CELL_SIZE);
+        } else if (gameMode === 'predefined') {
+            if (!placementActive || waitingForRoll) return;
+            let newX = cellX;
+            let newY = cellY;
+            let maxX = COLS - currentShape.w;
+            let maxY = ROWS - currentShape.h;
+            newX = Math.min(Math.max(0, newX), maxX);
+            newY = Math.min(Math.max(0, newY), maxY);
+            if (currentShape.x !== newX || currentShape.y !== newY) {
+                currentShape.x = newX;
+                currentShape.y = newY;
+                drawBoard();
+            }
+        }
     }
 
     function handleCanvasClick(e) {
@@ -618,17 +714,30 @@
         if (simulationMode) { currentMsg = "Режим симуляции: вы не можете взаимодействовать с полем."; updateUI(); return; }
         if (botMode && botPlayers.includes(currentPlayer)) { currentMsg = "Ход бота, подождите..."; updateUI(); return; }
         if(waitingForRoll) { currentMsg = "Сначала бросьте кубики!"; updateUI(); return; }
-        if(!selectionMode) return;
-        const rectCanvas = canvas.getBoundingClientRect();
-        const scaleX = canvas.width/rectCanvas.width, scaleY = canvas.height/rectCanvas.height;
-        let cellX = Math.floor((e.clientX - rectCanvas.left)*scaleX/CELL_SIZE), cellY = Math.floor((e.clientY - rectCanvas.top)*scaleY/CELL_SIZE);
-        cellX = Math.min(Math.max(0,cellX), COLS-1); cellY = Math.min(Math.max(0,cellY), ROWS-1);
-        if(firstCorner === null) { firstCorner = { x: cellX, y: cellY }; currentMsg = `Первый угол: (${cellX},${cellY}). Теперь выберите противоположный.`; updateUI(); drawBoard(); }
-        else {
-            let left = Math.min(firstCorner.x, cellX), right = Math.max(firstCorner.x, cellX), top = Math.min(firstCorner.y, cellY), bottom = Math.max(firstCorner.y, cellY);
-            let width = right-left+1, height = bottom-top+1;
-            if(tryMakeMove(left, top, width, height)) { drawBoard(); finishMove(); }
-            else { firstCorner = null; updateUI(); drawBoard(); }
+
+        if (gameMode === 'classic') {
+            if(!selectionMode) return;
+            const rectCanvas = canvas.getBoundingClientRect();
+            const scaleX = canvas.width/rectCanvas.width, scaleY = canvas.height/rectCanvas.height;
+            let cellX = Math.floor((e.clientX - rectCanvas.left)*scaleX/CELL_SIZE), cellY = Math.floor((e.clientY - rectCanvas.top)*scaleY/CELL_SIZE);
+            cellX = Math.min(Math.max(0,cellX), COLS-1); cellY = Math.min(Math.max(0,cellY), ROWS-1);
+            if(firstCorner === null) { firstCorner = { x: cellX, y: cellY }; currentMsg = `Первый угол: (${cellX},${cellY}). Теперь выберите противоположный.`; updateUI(); drawBoard(); }
+            else {
+                let left = Math.min(firstCorner.x, cellX), right = Math.max(firstCorner.x, cellX), top = Math.min(firstCorner.y, cellY), bottom = Math.max(firstCorner.y, cellY);
+                let width = right-left+1, height = bottom-top+1;
+                if(tryMakeMove(left, top, width, height)) { drawBoard(); finishMove(); }
+                else { firstCorner = null; updateUI(); drawBoard(); }
+            }
+        } else if (gameMode === 'predefined') {
+            if (!placementActive) return;
+            if (tryMakeMove(currentShape.x, currentShape.y, currentShape.w, currentShape.h)) {
+                placementActive = false;
+                drawBoard();
+                finishMove();
+            } else {
+                updateUI();
+                drawBoard();
+            }
         }
     }
 
@@ -671,6 +780,7 @@
         START_SIZE = newStartSize;
         PLAYER_COUNT = newPlayerCount;
         simulationMode = newSimulationMode;
+        gameMode = getSelectedGameMode();
         
         updateCanvasSize();
         updateStartCells();
@@ -707,7 +817,13 @@
         settingsModal.style.display = "none";
     }
 
-    function openModal() { settingsModal.style.display = "flex"; updateMinFieldSizeWarning(); }
+    function openModal() {
+        for (let radio of gameModeRadios) {
+            if (radio.value === gameMode) radio.checked = true;
+        }
+        settingsModal.style.display = "flex";
+        updateMinFieldSizeWarning();
+    }
     function closeModal() { settingsModal.style.display = "none"; }
     radioStandard.addEventListener('change', () => customSizeInputs.style.display = radioCustom.checked ? 'flex' : 'none');
     radioCustom.addEventListener('change', () => customSizeInputs.style.display = radioCustom.checked ? 'flex' : 'none');
@@ -732,6 +848,7 @@
         waitingForRoll = true;
         selectionMode = false;
         firstCorner = null;
+        placementActive = false;
         diceN = 0; diceM = 0;
         turnCounter = 0;
         activePlayers = [...positions];
@@ -754,6 +871,7 @@
         updateCanvasSize();
         updateStartCells();
         applyColorBlindMode('normal');
+        gameMode = 'predefined';
         newGame();
         canvas.addEventListener('click', handleCanvasClick);
         canvas.addEventListener('mousemove', onMouseMove);
@@ -763,9 +881,23 @@
         resetBtnLeft.addEventListener('click', () => newGame());
         window.addEventListener('keydown', (e) => {
             if (simulationMode) return;
-            if (e.key === 'Enter' && gameActive && waitingForRoll && !(botMode && botPlayers.includes(currentPlayer))) rollDice();
-            else if (e.key === 'Escape' && selectionMode && firstCorner && !(botMode && botPlayers.includes(currentPlayer))) { firstCorner = null; currentMsg = "Выбор отменён"; updateUI(); drawBoard(); }
-            else if ((e.key === 's' || e.key === 'S') && gameActive && !(botMode && botPlayers.includes(currentPlayer))) skipTurn(false);
+            // Используем event.code для физических клавиш (не зависит от раскладки)
+            if (e.code === 'Enter' && gameActive && waitingForRoll && !(botMode && botPlayers.includes(currentPlayer))) {
+                rollDice();
+            }
+            else if (e.code === 'Escape' && selectionMode && firstCorner && !(botMode && botPlayers.includes(currentPlayer)) && gameMode === 'classic') {
+                firstCorner = null;
+                currentMsg = "Выбор отменён";
+                updateUI();
+                drawBoard();
+            }
+            else if (e.code === 'KeyR' && gameMode === 'predefined' && placementActive && !waitingForRoll && !(botMode && botPlayers.includes(currentPlayer)) && gameActive) {
+                e.preventDefault();
+                rotateShape();
+            }
+            else if (e.code === 'KeyS' && gameActive && !(botMode && botPlayers.includes(currentPlayer))) {
+                skipTurn(false);
+            }
         });
     }
     init();
