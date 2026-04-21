@@ -502,7 +502,7 @@ input:checked + .slider:before {
     border-top: 1px solid #5e4230;
 }
 
-/* Модальное окно результатов — исправление цветов текста */
+/* Модальное окно результатов */
 .result-modal .result-modal-content {
     max-width: 500px;
     background: #2c2c2c;
@@ -666,7 +666,6 @@ input:checked + .slider:before {
     }
 }
 
-/* Двухколоночная сетка для настроек */
 .settings-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -679,7 +678,6 @@ input:checked + .slider:before {
     gap: 20px;
 }
 
-/* На узких экранах переключаемся на одну колонку */
 @media (max-width: 700px) {
     .settings-grid {
         grid-template-columns: 1fr;
