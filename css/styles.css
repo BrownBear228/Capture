@@ -217,11 +217,16 @@ canvas {
     backdrop-filter: blur(4px);
 }
 
-.field-size-label, .bots-label {
+.field-size-label, .bots-label, .rotate-hint {
     background: #2c2b26;
     padding: 4px 12px;
     border-radius: 20px;
     display: inline-block;
+}
+
+.rotate-hint {
+    background: #3c3a2e;
+    color: #ffd966;
 }
 
 .info-panel {
@@ -503,7 +508,7 @@ input:checked + .slider:before {
     background: #2c2c2c;
     border-radius: 32px;
     animation: fadeIn 0.2s;
-    color: #f0e6d2; /* базовый светлый цвет для всего текста внутри */
+    color: #f0e6d2;
 }
 
 .winner-block {
@@ -521,7 +526,7 @@ input:checked + .slider:before {
 }
 .winner-score {
     font-size: 1.2rem;
-    color: #ffd966; /* жёлтый для счёта */
+    color: #ffd966;
 }
 
 .rankings-list {
@@ -588,7 +593,6 @@ input:checked + .slider:before {
     color: #ffd966;
 }
 
-/* Заголовок модального окна */
 .result-modal .modal-header {
     background: #2c2c2c;
     border-bottom: 1px solid #5e4230;
@@ -604,7 +608,6 @@ input:checked + .slider:before {
     color: #ffa500;
 }
 
-/* Кнопки в футере */
 .result-modal .modal-footer button {
     background: #3b2a1f;
     border: none;
@@ -663,4 +666,23 @@ input:checked + .slider:before {
     }
 }
 
+/* Двухколоночная сетка для настроек */
+.settings-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
 
+.settings-column {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* На узких экранах переключаемся на одну колонку */
+@media (max-width: 700px) {
+    .settings-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+}
