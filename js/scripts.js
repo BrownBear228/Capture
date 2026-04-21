@@ -20,6 +20,9 @@
     const RECT_BORDER = '#000000';
     const GHOST_STYLE = 'rgba(255, 255, 200, 0.4)';
     const PREDEFINED_GHOST_STYLE = 'rgba(100, 200, 255, 0.5)';
+    const KILL_GHOST_STYLE = 'rgba(255, 80, 80, 0.6)';
+    const AVAILABLE_HIGHLIGHT = 'rgba(50, 255, 50, 0.3)';
+    const AVAILABLE_BORDER = '#00ff00';
 
     let rectangles = [];
     let currentPlayer = 1;
@@ -42,11 +45,14 @@
     let isBotThinking = false;
     let simulationMode = false;
 
-    let gameMode = 'predefined'; // 'classic' or 'predefined'
+    let gameMode = 'predefined';
 
-    // Для режима с готовым прямоугольником
     let placementActive = false;
     let currentShape = { x: 0, y: 0, w: 0, h: 0 };
+
+    let availableMoves = [];
+    let killWarning = null;
+    let showAvailableHighlight = true;  // НОВАЯ ПЕРЕМЕННАЯ
 
     let START_CELLS = {};
 
@@ -99,6 +105,7 @@
     const minFieldSizeSpan = document.getElementById('minFieldSizeSpan');
     const minFieldSizeSpan2 = document.getElementById('minFieldSizeSpan2');
     const gameModeRadios = document.querySelectorAll('input[name="gameMode"]');
+    const highlightToggle = document.getElementById('highlightToggle'); // НОВЫЙ ЭЛЕМЕНТ
 
     function updateControlUI() {
         const isSimulation = simulationMode;
@@ -216,7 +223,6 @@
         turnCountDisplay.innerText = turnCounter;
         updateControlUI();
 
-        // Управление подсказкой вращения
         if (gameMode === 'predefined' && placementActive && !waitingForRoll && !simulationMode && !(botMode && botPlayers.includes(currentPlayer))) {
             rotateHint.style.display = 'inline-block';
         } else {
@@ -260,6 +266,29 @@
             if (start && x <= start.x && start.x < x+w && y <= start.y && start.y < y+h) return p;
         }
         return null;
+    }
+
+    function getAvailableMoves(player, diceA, diceB) {
+        const moves = [];
+        const possibleSizes = [[diceA, diceB]];
+        if (diceA !== diceB) possibleSizes.push([diceB, diceA]);
+
+        for (let [w, h] of possibleSizes) {
+            for (let y = 0; y <= ROWS - h; y++) {
+                for (let x = 0; x <= COLS - w; x++) {
+                    if (isAreaFree(x, y, w, h) && isAdjacentToPlayer({x,y,w,h,owner:null}, player)) {
+                        moves.push({ x, y, w, h, isCaptureRect: false, rectRef: null });
+                    }
+                }
+            }
+            for (let rect of rectangles) {
+                if (rect.owner === player) continue;
+                if (isValidSize(rect.w, rect.h, diceA, diceB) && isAdjacentToPlayer(rect, player)) {
+                    moves.push({ x: rect.x, y: rect.y, w: rect.w, h: rect.h, isCaptureRect: true, rectRef: rect });
+                }
+            }
+        }
+        return moves;
     }
 
     function redistributeTerritory(eliminatedPlayer, killerPlayer) {
@@ -568,21 +597,27 @@
         diceM = Math.floor(Math.random() * 6) + 1;
         waitingForRoll = false;
 
+        const moves = getAvailableMoves(currentPlayer, diceN, diceM);
+        availableMoves = moves;
+
+        if (moves.length === 0) {
+            currentMsg = "❌ Нет доступных ходов, ход пропущен автоматически.";
+            updateUI();
+            drawBoard();
+            finishMove();
+            return;
+        }
+
         if (gameMode === 'classic') {
             selectionMode = true;
             firstCorner = null;
             placementActive = false;
             currentMsg = `🎲 Выпало ${diceN} и ${diceM}. Кликните на поле, чтобы выбрать прямоугольник.`;
-        } else { // predefined mode
+        } else {
             selectionMode = false;
             firstCorner = null;
             placementActive = true;
-            currentShape = {
-                x: 0,
-                y: 0,
-                w: diceN,
-                h: diceM
-            };
+            currentShape = { x: 0, y: 0, w: diceN, h: diceM };
             let placed = false;
             for (let y = 0; y <= ROWS - currentShape.h && !placed; y++) {
                 for (let x = 0; x <= COLS - currentShape.w; x++) {
@@ -601,7 +636,8 @@
             }
             currentMsg = `🎲 Выпало ${diceN} и ${diceM}. Перемещайте прямоугольник мышью, вращайте клавишей R. Кликните для размещения.`;
         }
-        updateUI(); drawBoard();
+        updateUI();
+        drawBoard();
     }
 
     function rotateShape() {
@@ -644,10 +680,12 @@
         ctx.strokeStyle = GRID_COLOR;
         for (let row = 0; row <= ROWS; row++) { ctx.beginPath(); ctx.moveTo(0, row*CELL_SIZE); ctx.lineTo(CANVAS_W, row*CELL_SIZE); ctx.stroke(); }
         for (let col = 0; col <= COLS; col++) { ctx.beginPath(); ctx.moveTo(col*CELL_SIZE, 0); ctx.lineTo(col*CELL_SIZE, CANVAS_H); ctx.stroke(); }
+
         for(let rect of rectangles) {
             ctx.fillStyle = rect.owner === null ? NEUTRAL_COLOR : PLAYER_COLORS[rect.owner];
             ctx.fillRect(rect.x*CELL_SIZE, rect.y*CELL_SIZE, rect.w*CELL_SIZE, rect.h*CELL_SIZE);
-            ctx.strokeStyle = RECT_BORDER; ctx.strokeRect(rect.x*CELL_SIZE, rect.y*CELL_SIZE, rect.w*CELL_SIZE, rect.h*CELL_SIZE);
+            ctx.strokeStyle = RECT_BORDER;
+            ctx.strokeRect(rect.x*CELL_SIZE, rect.y*CELL_SIZE, rect.w*CELL_SIZE, rect.h*CELL_SIZE);
             const area = rect.w * rect.h;
             const centerX = (rect.x + rect.w/2)*CELL_SIZE, centerY = (rect.y + rect.h/2)*CELL_SIZE;
             ctx.font = `bold ${Math.min(CELL_SIZE-4,18)}px "Segoe UI"`;
@@ -656,19 +694,48 @@
             ctx.fillStyle = '#FFF'; ctx.fillText(area.toString(), centerX, centerY);
         }
 
-        if (!simulationMode && gameActive) {
-            if (gameMode === 'classic' && selectionMode && firstCorner && !placementActive) {
-                ctx.fillStyle = 'rgba(255,255,100,0.6)';
-                ctx.fillRect(firstCorner.x*CELL_SIZE, firstCorner.y*CELL_SIZE, CELL_SIZE, CELL_SIZE);
-                ctx.strokeStyle = 'gold';
-                ctx.strokeRect(firstCorner.x*CELL_SIZE, firstCorner.y*CELL_SIZE, CELL_SIZE, CELL_SIZE);
-            } else if (gameMode === 'predefined' && placementActive && !waitingForRoll && currentShape && currentShape.w > 0 && currentShape.h > 0) {
-                ctx.fillStyle = PREDEFINED_GHOST_STYLE;
-                ctx.fillRect(currentShape.x*CELL_SIZE, currentShape.y*CELL_SIZE, currentShape.w*CELL_SIZE, currentShape.h*CELL_SIZE);
-                ctx.strokeStyle = '#00ffff';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(currentShape.x*CELL_SIZE, currentShape.y*CELL_SIZE, currentShape.w*CELL_SIZE, currentShape.h*CELL_SIZE);
+        const isHumanTurn = !simulationMode && gameActive && !(botMode && botPlayers.includes(currentPlayer));
+        // Подсветка доступных ходов только если включена настройка
+        if (isHumanTurn && !waitingForRoll && gameMode === 'predefined' && availableMoves.length > 0 && showAvailableHighlight) {
+            for (let move of availableMoves) {
+                const { x, y, w, h, isCaptureRect } = move;
+                if (!isCaptureRect) {
+                    ctx.fillStyle = AVAILABLE_HIGHLIGHT;
+                    ctx.fillRect(x*CELL_SIZE, y*CELL_SIZE, w*CELL_SIZE, h*CELL_SIZE);
+                } else {
+                    ctx.strokeStyle = AVAILABLE_BORDER;
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(x*CELL_SIZE, y*CELL_SIZE, w*CELL_SIZE, h*CELL_SIZE);
+                    ctx.lineWidth = 1;
+                }
             }
+        }
+
+        if (!simulationMode && gameActive && gameMode === 'predefined' && placementActive && !waitingForRoll && currentShape && currentShape.w > 0 && currentShape.h > 0) {
+            const killed = coversStartCell(currentShape.x, currentShape.y, currentShape.w, currentShape.h, currentPlayer);
+            let ghostColor = PREDEFINED_GHOST_STYLE;
+            if (killed !== null && activePlayers.includes(killed)) {
+                ghostColor = KILL_GHOST_STYLE;
+                const centerX = (currentShape.x + currentShape.w/2) * CELL_SIZE;
+                const centerY = (currentShape.y + currentShape.h/2) * CELL_SIZE;
+                ctx.font = `bold ${Math.min(CELL_SIZE * Math.min(currentShape.w, currentShape.h) * 0.6, 40)}px "Segoe UI"`;
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillStyle = "#ffffff";
+                ctx.fillText("💀", centerX, centerY);
+            }
+            ctx.fillStyle = ghostColor;
+            ctx.fillRect(currentShape.x*CELL_SIZE, currentShape.y*CELL_SIZE, currentShape.w*CELL_SIZE, currentShape.h*CELL_SIZE);
+            ctx.strokeStyle = killed ? '#ff0000' : '#00ffff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(currentShape.x*CELL_SIZE, currentShape.y*CELL_SIZE, currentShape.w*CELL_SIZE, currentShape.h*CELL_SIZE);
+        }
+
+        if (!simulationMode && gameActive && gameMode === 'classic' && selectionMode && firstCorner && !placementActive) {
+            ctx.fillStyle = 'rgba(255,255,100,0.6)';
+            ctx.fillRect(firstCorner.x*CELL_SIZE, firstCorner.y*CELL_SIZE, CELL_SIZE, CELL_SIZE);
+            ctx.strokeStyle = 'gold';
+            ctx.strokeRect(firstCorner.x*CELL_SIZE, firstCorner.y*CELL_SIZE, CELL_SIZE, CELL_SIZE);
         }
     }
 
@@ -704,6 +771,13 @@
             if (currentShape.x !== newX || currentShape.y !== newY) {
                 currentShape.x = newX;
                 currentShape.y = newY;
+                const killed = coversStartCell(currentShape.x, currentShape.y, currentShape.w, currentShape.h, currentPlayer);
+                if (killed !== null && activePlayers.includes(killed)) {
+                    currentMsg = `⚠️ Этим ходом вы убьёте ${getPlayerName(killed)}!`;
+                } else {
+                    if (currentMsg.startsWith("⚠️")) currentMsg = `🎲 Выпало ${diceN} и ${diceM}. Перемещайте прямоугольник мышью, вращайте клавишей R. Кликните для размещения.`;
+                }
+                updateUI();
                 drawBoard();
             }
         }
@@ -782,6 +856,10 @@
         simulationMode = newSimulationMode;
         gameMode = getSelectedGameMode();
         
+        // Чтение настройки подсветки
+        const newHighlight = highlightToggle.checked;
+        showAvailableHighlight = newHighlight;
+        
         updateCanvasSize();
         updateStartCells();
         
@@ -821,6 +899,8 @@
         for (let radio of gameModeRadios) {
             if (radio.value === gameMode) radio.checked = true;
         }
+        // Устанавливаем текущее значение подсветки в модальном окне
+        highlightToggle.checked = showAvailableHighlight;
         settingsModal.style.display = "flex";
         updateMinFieldSizeWarning();
     }
@@ -854,6 +934,9 @@
         activePlayers = [...positions];
         eliminatedOrder = [];
         gameActive = true;
+        availableMoves = [];
+        killWarning = null;
+        // showAvailableHighlight сохраняется из настроек, не сбрасываем
         currentMsg = simulationMode ? "Режим симуляции: наблюдение за игрой ботов." : "Новая игра! Бросьте кубики.";
         rollBtn.disabled = false;
         skipBtn.disabled = false;
@@ -872,6 +955,7 @@
         updateStartCells();
         applyColorBlindMode('normal');
         gameMode = 'predefined';
+        showAvailableHighlight = true; // по умолчанию включено
         newGame();
         canvas.addEventListener('click', handleCanvasClick);
         canvas.addEventListener('mousemove', onMouseMove);
@@ -881,7 +965,6 @@
         resetBtnLeft.addEventListener('click', () => newGame());
         window.addEventListener('keydown', (e) => {
             if (simulationMode) return;
-            // Используем event.code для физических клавиш (не зависит от раскладки)
             if (e.code === 'Enter' && gameActive && waitingForRoll && !(botMode && botPlayers.includes(currentPlayer))) {
                 rollDice();
             }
