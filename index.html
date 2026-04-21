@@ -21,6 +21,7 @@
         </div>
         <div class="canvas-info">
             <div class="field-size-label" id="fieldSizeLabel">Стандартное поле (39×28)</div>
+            <div class="rotate-hint" id="rotateHint" style="display: none;">🔄 R — вращать</div>
             <div class="bots-label" id="botsLabel">🤖 Игра с ботами</div>
         </div>
         <div class="info-panel">
@@ -42,53 +43,68 @@
             <span class="close-modal">&times;</span>
         </div>
         <div class="modal-body">
-            <div class="settings-group">
-                <label>Количество игроков:</label>
-                <div class="radio-group">
-                    <label class="radio-label"><input type="radio" name="playerCount" value="2"> 2 игрока</label>
-                    <label class="radio-label"><input type="radio" name="playerCount" value="4" checked> 4 игрока</label>
+            <div class="settings-grid">
+                <!-- Левая колонка -->
+                <div class="settings-column">
+                    <div class="settings-group">
+                        <label>Количество игроков:</label>
+                        <div class="radio-group">
+                            <label class="radio-label"><input type="radio" name="playerCount" value="2"> 2 игрока</label>
+                            <label class="radio-label"><input type="radio" name="playerCount" value="4" checked> 4 игрока</label>
+                        </div>
+                    </div>
+                    <div class="settings-group">
+                        <label>Размер стартовых квадратов: <span id="startSizeValue">2</span></label>
+                        <input type="range" id="startSizeSlider" min="1" max="6" step="1" value="2">
+                        <div class="hint">(от 1 до 6, влияет на мин. размер поля)</div>
+                    </div>
+                    <div class="settings-group">
+                        <label>Размер поля:</label>
+                        <div class="radio-group">
+                            <label class="radio-label"><input type="radio" name="fieldSize" value="standard" checked> Стандартный (39×28)</label>
+                            <label class="radio-label"><input type="radio" name="fieldSize" value="custom"> Кастомный</label>
+                        </div>
+                        <div id="customSizeInputs" class="custom-size-inputs" style="display: none;">
+                            <input type="number" id="customCols" min="8" max="58" value="39" step="1"> ×
+                            <input type="number" id="customRows" min="8" max="31" value="28" step="1">
+                            <div id="sizeWarning" class="warning-message" style="display: none; color: #ffaa66; font-size: 0.8rem;">Минимальный размер поля: <span id="minFieldSizeSpan">0</span>×<span id="minFieldSizeSpan2">0</span></div>
+                        </div>
+                    </div>
+                    <div class="settings-group">
+                        <label>Отрисовка хода:</label>
+                        <div class="radio-group">
+                            <label class="radio-label"><input type="radio" name="gameMode" value="classic"> Выделение углов</label>
+                            <label class="radio-label"><input type="radio" name="gameMode" value="predefined" checked> Готовый прямоугольник</label>
+                        </div>
+                    </div>
                 </div>
-            </div>
-            <div class="settings-group">
-                <label>Размер стартовых квадратов: <span id="startSizeValue">2</span></label>
-                <input type="range" id="startSizeSlider" min="1" max="6" step="1" value="2">
-                <div class="hint">(от 1 до 6, влияет на мин. размер поля)</div>
-            </div>
-            <div class="settings-group">
-                <label>Размер поля:</label>
-                <div class="radio-group">
-                    <label class="radio-label"><input type="radio" name="fieldSize" value="standard" checked> Стандартный (39×28)</label>
-                    <label class="radio-label"><input type="radio" name="fieldSize" value="custom"> Кастомный</label>
-                </div>
-                <div id="customSizeInputs" class="custom-size-inputs" style="display: none;">
-                    <input type="number" id="customCols" min="8" max="58" value="39" step="1"> ×
-                    <input type="number" id="customRows" min="8" max="31" value="28" step="1">
-                    <div id="sizeWarning" class="warning-message" style="display: none; color: #ffaa66; font-size: 0.8rem;">Минимальный размер поля: <span id="minFieldSizeSpan">0</span>×<span id="minFieldSizeSpan2">0</span></div>
-                </div>
-            </div>
-            <div class="settings-group">
-                <label for="botsToggle">🤖 Режим ботов:</label>
-                <label class="switch">
-                    <input type="checkbox" id="botsToggle" checked>
-                    <span class="slider round"></span>
-                </label>
-                <span id="botsStatusText">(игроки 2,3,4 — боты)</span>
-            </div>
-            <div class="settings-group">
-                <label for="simulationToggle">🎬 Режим симуляции (все игроки — боты):</label>
-                <label class="switch">
-                    <input type="checkbox" id="simulationToggle">
-                    <span class="slider round"></span>
-                </label>
-                <div class="hint">(включите для наблюдения за игрой ботов)</div>
-            </div>
-            <div class="settings-group">
-                <label>Цветовой режим:</label>
-                <div class="radio-group colorblind-group">
-                    <label class="radio-label"><input type="radio" name="colorMode" value="normal" checked> Обычный</label>
-                    <label class="radio-label"><input type="radio" name="colorMode" value="protanopia"> Протанопия</label>
-                    <label class="radio-label"><input type="radio" name="colorMode" value="deuteranopia"> Дейтеранопия</label>
-                    <label class="radio-label"><input type="radio" name="colorMode" value="tritanopia"> Тританопия</label>
+                <!-- Правая колонка -->
+                <div class="settings-column">
+                    <div class="settings-group">
+                        <label for="botsToggle">🤖 Режим ботов:</label>
+                        <label class="switch">
+                            <input type="checkbox" id="botsToggle" checked>
+                            <span class="slider round"></span>
+                        </label>
+                        <span id="botsStatusText">(игроки 2,3,4 — боты)</span>
+                    </div>
+                    <div class="settings-group">
+                        <label for="simulationToggle">🎬 Режим симуляции (все игроки — боты):</label>
+                        <label class="switch">
+                            <input type="checkbox" id="simulationToggle">
+                            <span class="slider round"></span>
+                        </label>
+                        <div class="hint">(включите для наблюдения за игрой ботов)</div>
+                    </div>
+                    <div class="settings-group">
+                        <label>Цветовой режим:</label>
+                        <div class="radio-group colorblind-group">
+                            <label class="radio-label"><input type="radio" name="colorMode" value="normal" checked> Обычный</label>
+                            <label class="radio-label"><input type="radio" name="colorMode" value="protanopia"> Протанопия</label>
+                            <label class="radio-label"><input type="radio" name="colorMode" value="deuteranopia"> Дейтеранопия</label>
+                            <label class="radio-label"><input type="radio" name="colorMode" value="tritanopia"> Тританопия</label>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -99,7 +115,6 @@
     </div>
 </div>
 
-<!-- Модальное окно результатов игры -->
 <div id="gameResultModal" class="modal result-modal">
     <div class="modal-content result-modal-content">
         <div class="modal-header">
