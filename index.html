@@ -10,7 +10,10 @@
 <div class="game-wrapper">
     <div class="game-container">
         <div class="game-top-row">
-            <div class="settings-gear" id="settingsIcon">⚙️</div>
+            <div class="top-left-buttons">
+                <div class="round-button" id="settingsIcon">⚙️</div>
+                <div class="round-button" id="helpButton">❓</div>
+            </div>
             <div class="left-panel">
                 <div class="score-panel" id="sideScorePanel"></div>
                 <div class="turn-counter-box">Ход: <span id="turnCountDisplay">0</span></div>
@@ -31,11 +34,11 @@
                 <button id="rollBtn" aria-label="Бросить кубики">🎲 Бросить кубики</button>
                 <button id="skipBtn" aria-label="Пропустить ход">⏭ Пропустить ход</button>
             </div>
-            <div class="message" id="msgArea">Нажмите "Бросить кубики"</div>
         </div>
     </div>
 </div>
 
+<!-- Модальное окно настроек -->
 <div id="settingsModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
@@ -44,7 +47,6 @@
         </div>
         <div class="modal-body">
             <div class="settings-grid">
-                <!-- Левая колонка -->
                 <div class="settings-column">
                     <div class="settings-group">
                         <label>Количество игроков:</label>
@@ -78,7 +80,6 @@
                         </div>
                     </div>
                 </div>
-                <!-- Правая колонка -->
                 <div class="settings-column">
                     <div class="settings-group">
                         <label for="botsToggle">🤖 Режим ботов:</label>
@@ -96,7 +97,6 @@
                         </label>
                         <div class="hint">(включите для наблюдения за игрой ботов)</div>
                     </div>
-                    <!-- НОВЫЙ ПЕРЕКЛЮЧАТЕЛЬ ПОДСВЕТКИ -->
                     <div class="settings-group">
                         <label for="highlightToggle">🟢 Подсветка доступных ходов:</label>
                         <label class="switch">
@@ -124,6 +124,59 @@
     </div>
 </div>
 
+<!-- Модальное окно справочника -->
+<div id="helpModal" class="modal help-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>📖 Справочник игры</h3>
+            <span class="close-help-modal">&times;</span>
+        </div>
+        <div class="modal-body two-columns">
+            <div class="help-column">
+                <div class="help-section">
+                    <h4>🎮 Горячие клавиши</h4>
+                    <ul>
+                        <li><kbd>Enter</kbd> — бросить кубики / подтвердить размещение</li>
+                        <li><kbd>S</kbd> — пропустить ход</li>
+                        <li><kbd>R</kbd> — повернуть прямоугольник</li>
+                        <li><kbd>W</kbd> / <kbd>▲</kbd> — вверх</li>
+                        <li><kbd>S</kbd> / <kbd>▼</kbd> — вниз</li>
+                        <li><kbd>A</kbd> / <kbd>◀</kbd> — влево</li>
+                        <li><kbd>D</kbd> / <kbd>▶</kbd> — вправо</li>
+                        <li><kbd>Esc</kbd> — открыть/закрыть настройки</li>
+                        <li><kbd>Q</kbd> — открыть/закрыть справочник</li>
+                        <li><kbd>N</kbd> — новая игра</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="help-column">
+                <div class="help-section">
+                    <h4>⚔️ Правила захвата</h4>
+                    <p>Размер прямоугольника <strong>строго по кубикам</strong>. Вы можете:</p>
+                    <ul>
+                        <li><span class="highlight-green">Занять пустую область</span> (прилегает к вашей территории).</li>
+                        <li><span class="highlight-orange">Захватить вражеский блок</span> целиком (если он касается вашей территории и имеет нужный размер).</li>
+                        <li><span class="highlight-gray">Захватить нейтральный блок</span> (серый, уже существующий).</li>
+                    </ul>
+                    <p>Накрытие стартовой клетки → выбывание врага, его земли переходят соседям.</p>
+                </div>
+                <div class="help-section">
+                    <h4>🏆 Условия победы</h4>
+                    <ul>
+                        <li>Захватить ≥ 2/3 поля</li>
+                        <li>Уничтожить всех соперников</li>
+                        <li>Поле полностью заполнено → побеждает игрок с наибольшей территорией</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button id="closeHelpBtn">Закрыть</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно результатов -->
 <div id="gameResultModal" class="modal result-modal">
     <div class="modal-content result-modal-content">
         <div class="modal-header">
