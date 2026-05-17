@@ -30,7 +30,7 @@
     let waitingForRoll = true;
     let selectionMode = false;
     let firstCorner = null;
-    let currentMsg = "Бросьте кубики, чтобы начать ход"; // используется только для внутренней логики
+    let currentMsg = "Бросьте кубики, чтобы начать ход";
 
     let turnCounter = 0;
     let activePlayers = [1,2,3,4];
@@ -52,7 +52,6 @@
     let currentShape = { x: 0, y: 0, w: 0, h: 0 };
 
     let availableMoves = [];
-    let killWarning = null;
     let showAvailableHighlight = true;
 
     let START_CELLS = {};
@@ -92,7 +91,6 @@
     const timerDisplay = document.getElementById('timerDisplay');
     const fieldSizeLabel = document.getElementById('fieldSizeLabel');
     const botsLabel = document.getElementById('botsLabel');
-    const rotateHint = document.getElementById('rotateHint');
 
     const settingsIcon = document.getElementById('settingsIcon');
     const settingsModal = document.getElementById('settingsModal');
@@ -244,12 +242,6 @@
         updateSideScores();
         turnCountDisplay.innerText = turnCounter;
         updateControlUI();
-
-        if (gameMode === 'predefined' && placementActive && !waitingForRoll && !simulationMode && !(botMode && botPlayers.includes(currentPlayer))) {
-            rotateHint.style.display = 'inline-block';
-        } else {
-            rotateHint.style.display = 'none';
-        }
     }
 
     function updateKillWarningForShape(shape) {
@@ -262,7 +254,6 @@
                 currentMsg = `🎲 Выпало ${diceN} и ${diceM}. Перемещайте прямоугольник мышью, вращайте клавишей R. Кликните для размещения.`;
             }
         }
-        // сообщение не выводится на экран
     }
 
     function areAdjacentByEdge(rect1, rect2) {
@@ -811,7 +802,6 @@
         }
     }
 
-    let ghostX=-1,ghostY=-1;
     function onMouseMove(e) {
         if (simulationMode) return;
         const rectCanvas = canvas.getBoundingClientRect();
@@ -822,10 +812,8 @@
         cellY = Math.min(Math.max(0,cellY), ROWS-1);
 
         if (gameMode === 'classic') {
-            if (!selectionMode || firstCorner === null) { ghostX=-1; scheduleRedraw(); return; }
-            ghostX=cellX; ghostY=cellY;
-            scheduleRedraw();
-            let left = Math.min(firstCorner.x, ghostX), right = Math.max(firstCorner.x, ghostX), top = Math.min(firstCorner.y, ghostY), bottom = Math.max(firstCorner.y, ghostY);
+            if (!selectionMode || firstCorner === null) { scheduleRedraw(); return; }
+            let left = Math.min(firstCorner.x, cellX), right = Math.max(firstCorner.x, cellX), top = Math.min(firstCorner.y, cellY), bottom = Math.max(firstCorner.y, cellY);
             let width = right-left+1, height = bottom-top+1;
             let isValid = isValidSize(width, height, diceN, diceM);
             ctx.fillStyle = isValid ? GHOST_STYLE : 'rgba(255,80,80,0.3)';
@@ -1000,7 +988,6 @@
         eliminatedOrder = [];
         gameActive = true;
         availableMoves = [];
-        killWarning = null;
         currentMsg = simulationMode ? "Режим симуляции: наблюдение за игрой ботов." : "Новая игра! Бросьте кубики.";
         rollBtn.disabled = false;
         skipBtn.disabled = false;
@@ -1036,14 +1023,13 @@
         newGame();
         canvas.addEventListener('click', handleCanvasClick);
         canvas.addEventListener('mousemove', onMouseMove);
-        canvas.addEventListener('mouseleave', () => { ghostX = -1; scheduleRedraw(); });
+        canvas.addEventListener('mouseleave', () => { scheduleRedraw(); });
         rollBtn.addEventListener('click', rollDice);
         skipBtn.addEventListener('click', () => skipTurn(false));
         resetBtnLeft.addEventListener('click', () => newGame());
         window.addEventListener('keydown', (e) => {
             if (simulationMode) return;
 
-            // Enter: бросок кубиков или подтверждение размещения
             if (e.code === 'Enter' && gameActive) {
                 if (waitingForRoll && !(botMode && botPlayers.includes(currentPlayer))) {
                     rollDice();
@@ -1064,14 +1050,12 @@
                 }
             }
 
-            // R - поворот
             if (e.code === 'KeyR' && gameMode === 'predefined' && placementActive && !waitingForRoll && !(botMode && botPlayers.includes(currentPlayer)) && gameActive) {
                 e.preventDefault();
                 rotateShape();
                 return;
             }
 
-            // Перемещение (WASD / стрелки)
             if (gameMode === 'predefined' && placementActive && !waitingForRoll && gameActive && !(botMode && botPlayers.includes(currentPlayer))) {
                 let dx = 0, dy = 0;
                 if (e.code === 'ArrowLeft' || e.code === 'KeyA') dx = -1;
@@ -1085,14 +1069,12 @@
                 }
             }
 
-            // S - пропуск хода (если не используется для движения)
             if (e.code === 'KeyS' && gameActive && !(botMode && botPlayers.includes(currentPlayer)) && !(placementActive && !waitingForRoll && gameMode === 'predefined')) {
                 skipTurn(false);
                 e.preventDefault();
                 return;
             }
 
-            // Esc: открыть/закрыть настройки (если ничего не открыто) или закрыть текущее модальное окно
             if (e.code === 'Escape') {
                 e.preventDefault();
                 if (settingsModal.style.display === 'flex') {
@@ -1105,7 +1087,6 @@
                 return;
             }
 
-            // Q - открыть/закрыть справочник
             if (e.code === 'KeyQ') {
                 e.preventDefault();
                 if (helpModal.style.display === 'flex') {
@@ -1116,13 +1097,13 @@
                 return;
             }
 
-            // N - новая игра
             if (e.code === 'KeyN') {
                 e.preventDefault();
                 newGame();
                 return;
             }
         });
+        openHelpModal();
     }
     init();
 })();
