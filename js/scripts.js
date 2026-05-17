@@ -30,7 +30,7 @@
     let waitingForRoll = true;
     let selectionMode = false;
     let firstCorner = null;
-    let currentMsg = "Бросьте кубики, чтобы начать ход";
+    let currentMsg = "Бросьте кубики, чтобы начать ход"; // используется только для внутренней логики
 
     let turnCounter = 0;
     let activePlayers = [1,2,3,4];
@@ -44,6 +44,7 @@
     let botPlayers = [2, 3, 4];
     let isBotThinking = false;
     let simulationMode = false;
+    let pendingBotTimeout = null;
 
     let gameMode = 'predefined';
 
@@ -52,9 +53,19 @@
 
     let availableMoves = [];
     let killWarning = null;
-    let showAvailableHighlight = true;  // НОВАЯ ПЕРЕМЕННАЯ
+    let showAvailableHighlight = true;
 
     let START_CELLS = {};
+
+    let redrawScheduled = false;
+    function scheduleRedraw() {
+        if (redrawScheduled) return;
+        redrawScheduled = true;
+        requestAnimationFrame(() => {
+            drawBoard();
+            redrawScheduled = false;
+        });
+    }
 
     function updateStartCells() {
         START_CELLS = {};
@@ -73,7 +84,6 @@
     const ctx = canvas.getContext('2d');
     const turnText = document.getElementById('turnText');
     const diceDisplay = document.getElementById('diceDisplay');
-    const msgArea = document.getElementById('msgArea');
     const rollBtn = document.getElementById('rollBtn');
     const skipBtn = document.getElementById('skipBtn');
     const resetBtnLeft = document.getElementById('resetBtnLeft');
@@ -105,7 +115,20 @@
     const minFieldSizeSpan = document.getElementById('minFieldSizeSpan');
     const minFieldSizeSpan2 = document.getElementById('minFieldSizeSpan2');
     const gameModeRadios = document.querySelectorAll('input[name="gameMode"]');
-    const highlightToggle = document.getElementById('highlightToggle'); // НОВЫЙ ЭЛЕМЕНТ
+    const highlightToggle = document.getElementById('highlightToggle');
+
+    const helpButton = document.getElementById('helpButton');
+    const helpModal = document.getElementById('helpModal');
+    const closeHelpSpan = document.querySelector('.close-help-modal');
+    const closeHelpBtn = document.getElementById('closeHelpBtn');
+
+    function clearPendingBot() {
+        if (pendingBotTimeout) {
+            clearTimeout(pendingBotTimeout);
+            pendingBotTimeout = null;
+        }
+        isBotThinking = false;
+    }
 
     function updateControlUI() {
         const isSimulation = simulationMode;
@@ -218,7 +241,6 @@
         turnText.style.backgroundColor = PLAYER_COLORS[currentPlayer];
         if(diceN && diceM && !waitingForRoll) diceDisplay.innerHTML = `🎲 ${diceN}  ·  ${diceM} 🎲`;
         else diceDisplay.innerHTML = `🎲  ?  ?  🎲`;
-        msgArea.innerText = currentMsg;
         updateSideScores();
         turnCountDisplay.innerText = turnCounter;
         updateControlUI();
@@ -228,6 +250,19 @@
         } else {
             rotateHint.style.display = 'none';
         }
+    }
+
+    function updateKillWarningForShape(shape) {
+        if (!shape) return;
+        const killed = coversStartCell(shape.x, shape.y, shape.w, shape.h, currentPlayer);
+        if (killed !== null && activePlayers.includes(killed)) {
+            currentMsg = `⚠️ Этим ходом вы убьёте ${getPlayerName(killed)}!`;
+        } else {
+            if (currentMsg.startsWith("⚠️")) {
+                currentMsg = `🎲 Выпало ${diceN} и ${diceM}. Перемещайте прямоугольник мышью, вращайте клавишей R. Кликните для размещения.`;
+            }
+        }
+        // сообщение не выводится на экран
     }
 
     function areAdjacentByEdge(rect1, rect2) {
@@ -431,6 +466,7 @@
         if (!gameActive) return;
         gameActive = false;
         stopTimer();
+        clearPendingBot();
         const finalScores = computeScores();
         const neutralCount = getNeutralCellCount();
         const totalTurns = turnCounter;
@@ -522,7 +558,7 @@
         currentMsg = `${getPlayerName(currentPlayer)}, бросьте кубики`;
         updateUI(); drawBoard();
         if ((botMode && botPlayers.includes(currentPlayer)) || simulationMode) {
-            setTimeout(() => maybeBotTurn(), 50);
+            maybeBotTurn();
         }
     }
 
@@ -534,12 +570,33 @@
         currentShape.y = Math.min(Math.max(0, currentShape.y), maxY);
     }
 
+    function moveShape(dx, dy) {
+        if (!placementActive || waitingForRoll || simulationMode) return false;
+        if (botMode && botPlayers.includes(currentPlayer)) return false;
+        let newX = currentShape.x + dx;
+        let newY = currentShape.y + dy;
+        let maxX = COLS - currentShape.w;
+        let maxY = ROWS - currentShape.h;
+        newX = Math.min(Math.max(0, newX), maxX);
+        newY = Math.min(Math.max(0, newY), maxY);
+        if (newX !== currentShape.x || newY !== currentShape.y) {
+            currentShape.x = newX;
+            currentShape.y = newY;
+            updateKillWarningForShape(currentShape);
+            scheduleRedraw();
+            return true;
+        }
+        return false;
+    }
+
     async function botTurn() {
         if (!gameActive || isBotThinking) return;
         const isBot = (botMode && botPlayers.includes(currentPlayer)) || simulationMode;
         if (!isBot) return;
         isBotThinking = true;
-        await new Promise(r => setTimeout(r, 400));
+        clearPendingBot();
+        await new Promise(r => { pendingBotTimeout = setTimeout(r, 400); });
+        pendingBotTimeout = null;
         if (!gameActive) { isBotThinking = false; return; }
         if (waitingForRoll) {
             diceN = Math.floor(Math.random() * 6) + 1;
@@ -550,25 +607,40 @@
             placementActive = false;
             currentMsg = `🎲 ${getPlayerName(currentPlayer)} (бот) выбросил ${diceN} и ${diceM}.`;
             updateUI(); drawBoard();
-            await new Promise(r => setTimeout(r, 300));
+            await new Promise(r => { pendingBotTimeout = setTimeout(r, 300); });
+            pendingBotTimeout = null;
+            if (!gameActive) { isBotThinking = false; return; }
         }
         const move = getBestMove(currentPlayer, diceN, diceM);
         if (move && tryMakeMove(move.x, move.y, move.w, move.h)) {
             currentMsg = `🤖 ${getPlayerName(currentPlayer)} (бот) сделал ход.`;
             updateUI(); drawBoard();
-            await new Promise(r => setTimeout(r, 500));
+            await new Promise(r => { pendingBotTimeout = setTimeout(r, 500); });
+            pendingBotTimeout = null;
+            if (!gameActive) { isBotThinking = false; return; }
             finishMove();
         } else {
             currentMsg = `🤖 ${getPlayerName(currentPlayer)} не может сходить, пропускает.`;
-            updateUI(); await new Promise(r => setTimeout(r, 500));
+            updateUI(); await new Promise(r => { pendingBotTimeout = setTimeout(r, 500); });
+            pendingBotTimeout = null;
+            if (!gameActive) { isBotThinking = false; return; }
             skipTurn(true);
         }
         isBotThinking = false;
     }
 
     function maybeBotTurn() {
+        if (!gameActive) return;
         const isBot = (botMode && botPlayers.includes(currentPlayer)) || simulationMode;
-        if (gameActive && isBot && !isBotThinking) botTurn();
+        if (isBot && !isBotThinking) {
+            clearPendingBot();
+            pendingBotTimeout = setTimeout(() => {
+                if (gameActive && ((botMode && botPlayers.includes(currentPlayer)) || simulationMode) && !isBotThinking) {
+                    botTurn();
+                }
+                pendingBotTimeout = null;
+            }, 50);
+        }
     }
 
     function getBestMove(player, diceA, diceB) {
@@ -656,9 +728,10 @@
         currentShape.x = newX;
         currentShape.y = newY;
         constrainShapePosition();
+        updateKillWarningForShape(currentShape);
         currentMsg = `Прямоугольник повёрнут: ${currentShape.w}×${currentShape.h}`;
         updateUI();
-        drawBoard();
+        scheduleRedraw();
     }
 
     function skipTurn(fromBot = false) {
@@ -695,7 +768,6 @@
         }
 
         const isHumanTurn = !simulationMode && gameActive && !(botMode && botPlayers.includes(currentPlayer));
-        // Подсветка доступных ходов только если включена настройка
         if (isHumanTurn && !waitingForRoll && gameMode === 'predefined' && availableMoves.length > 0 && showAvailableHighlight) {
             for (let move of availableMoves) {
                 const { x, y, w, h, isCaptureRect } = move;
@@ -750,9 +822,9 @@
         cellY = Math.min(Math.max(0,cellY), ROWS-1);
 
         if (gameMode === 'classic') {
-            if (!selectionMode || firstCorner === null) { ghostX=-1; drawBoard(); return; }
+            if (!selectionMode || firstCorner === null) { ghostX=-1; scheduleRedraw(); return; }
             ghostX=cellX; ghostY=cellY;
-            drawBoard();
+            scheduleRedraw();
             let left = Math.min(firstCorner.x, ghostX), right = Math.max(firstCorner.x, ghostX), top = Math.min(firstCorner.y, ghostY), bottom = Math.max(firstCorner.y, ghostY);
             let width = right-left+1, height = bottom-top+1;
             let isValid = isValidSize(width, height, diceN, diceM);
@@ -771,14 +843,8 @@
             if (currentShape.x !== newX || currentShape.y !== newY) {
                 currentShape.x = newX;
                 currentShape.y = newY;
-                const killed = coversStartCell(currentShape.x, currentShape.y, currentShape.w, currentShape.h, currentPlayer);
-                if (killed !== null && activePlayers.includes(killed)) {
-                    currentMsg = `⚠️ Этим ходом вы убьёте ${getPlayerName(killed)}!`;
-                } else {
-                    if (currentMsg.startsWith("⚠️")) currentMsg = `🎲 Выпало ${diceN} и ${diceM}. Перемещайте прямоугольник мышью, вращайте клавишей R. Кликните для размещения.`;
-                }
-                updateUI();
-                drawBoard();
+                updateKillWarningForShape(currentShape);
+                scheduleRedraw();
             }
         }
     }
@@ -855,8 +921,6 @@
         PLAYER_COUNT = newPlayerCount;
         simulationMode = newSimulationMode;
         gameMode = getSelectedGameMode();
-        
-        // Чтение настройки подсветки
         const newHighlight = highlightToggle.checked;
         showAvailableHighlight = newHighlight;
         
@@ -891,6 +955,7 @@
         applyColorBlindMode(colorMode);
         
         stopTimer();
+        clearPendingBot();
         newGame();
         settingsModal.style.display = "none";
     }
@@ -899,7 +964,6 @@
         for (let radio of gameModeRadios) {
             if (radio.value === gameMode) radio.checked = true;
         }
-        // Устанавливаем текущее значение подсветки в модальном окне
         highlightToggle.checked = showAvailableHighlight;
         settingsModal.style.display = "flex";
         updateMinFieldSizeWarning();
@@ -917,6 +981,7 @@
     customRows.addEventListener('input', updateMinFieldSizeWarning);
 
     function newGame() {
+        clearPendingBot();
         stopTimer(); timerSeconds = 0; updateTimerDisplay();
         rectangles = [];
         const positions = PLAYER_COUNT === 2 ? [1,2] : [1,2,3,4];
@@ -936,7 +1001,6 @@
         gameActive = true;
         availableMoves = [];
         killWarning = null;
-        // showAvailableHighlight сохраняется из настроек, не сбрасываем
         currentMsg = simulationMode ? "Режим симуляции: наблюдение за игрой ботов." : "Новая игра! Бросьте кубики.";
         rollBtn.disabled = false;
         skipBtn.disabled = false;
@@ -946,40 +1010,117 @@
         fieldSizeLabel.innerText = (COLS===39 && ROWS===28 && START_SIZE===2 && PLAYER_COUNT===4 && !simulationMode) ? "Стандартное поле (39×28)" : `Поле ${COLS}×${ROWS}, старт ${START_SIZE}, игроков ${PLAYER_COUNT}${simulationMode ? ' [СИМУЛЯЦИЯ]' : ''}`;
         botsLabel.innerText = simulationMode ? "🎬 Режим симуляции (все боты)" : (botMode ? "🤖 Игра с ботами" : "👤 Игра без ботов");
         if (simulationMode || (botMode && botPlayers.includes(currentPlayer))) {
-            setTimeout(() => maybeBotTurn(), 100);
+            maybeBotTurn();
         }
     }
+
+    function openHelpModal() {
+        helpModal.style.display = 'flex';
+    }
+    function closeHelpModal() {
+        helpModal.style.display = 'none';
+    }
+    if (helpButton) helpButton.addEventListener('click', openHelpModal);
+    if (closeHelpSpan) closeHelpSpan.addEventListener('click', closeHelpModal);
+    if (closeHelpBtn) closeHelpBtn.addEventListener('click', closeHelpModal);
+    window.addEventListener('click', (e) => {
+        if (e.target === helpModal) closeHelpModal();
+    });
 
     function init() {
         updateCanvasSize();
         updateStartCells();
         applyColorBlindMode('normal');
         gameMode = 'predefined';
-        showAvailableHighlight = true; // по умолчанию включено
+        showAvailableHighlight = true;
         newGame();
         canvas.addEventListener('click', handleCanvasClick);
         canvas.addEventListener('mousemove', onMouseMove);
-        canvas.addEventListener('mouseleave', () => { ghostX = -1; drawBoard(); });
+        canvas.addEventListener('mouseleave', () => { ghostX = -1; scheduleRedraw(); });
         rollBtn.addEventListener('click', rollDice);
         skipBtn.addEventListener('click', () => skipTurn(false));
         resetBtnLeft.addEventListener('click', () => newGame());
         window.addEventListener('keydown', (e) => {
             if (simulationMode) return;
-            if (e.code === 'Enter' && gameActive && waitingForRoll && !(botMode && botPlayers.includes(currentPlayer))) {
-                rollDice();
+
+            // Enter: бросок кубиков или подтверждение размещения
+            if (e.code === 'Enter' && gameActive) {
+                if (waitingForRoll && !(botMode && botPlayers.includes(currentPlayer))) {
+                    rollDice();
+                    e.preventDefault();
+                    return;
+                }
+                if (gameMode === 'predefined' && placementActive && !waitingForRoll && !(botMode && botPlayers.includes(currentPlayer))) {
+                    e.preventDefault();
+                    if (tryMakeMove(currentShape.x, currentShape.y, currentShape.w, currentShape.h)) {
+                        placementActive = false;
+                        drawBoard();
+                        finishMove();
+                    } else {
+                        updateUI();
+                        drawBoard();
+                    }
+                    return;
+                }
             }
-            else if (e.code === 'Escape' && selectionMode && firstCorner && !(botMode && botPlayers.includes(currentPlayer)) && gameMode === 'classic') {
-                firstCorner = null;
-                currentMsg = "Выбор отменён";
-                updateUI();
-                drawBoard();
-            }
-            else if (e.code === 'KeyR' && gameMode === 'predefined' && placementActive && !waitingForRoll && !(botMode && botPlayers.includes(currentPlayer)) && gameActive) {
+
+            // R - поворот
+            if (e.code === 'KeyR' && gameMode === 'predefined' && placementActive && !waitingForRoll && !(botMode && botPlayers.includes(currentPlayer)) && gameActive) {
                 e.preventDefault();
                 rotateShape();
+                return;
             }
-            else if (e.code === 'KeyS' && gameActive && !(botMode && botPlayers.includes(currentPlayer))) {
+
+            // Перемещение (WASD / стрелки)
+            if (gameMode === 'predefined' && placementActive && !waitingForRoll && gameActive && !(botMode && botPlayers.includes(currentPlayer))) {
+                let dx = 0, dy = 0;
+                if (e.code === 'ArrowLeft' || e.code === 'KeyA') dx = -1;
+                else if (e.code === 'ArrowRight' || e.code === 'KeyD') dx = 1;
+                else if (e.code === 'ArrowUp' || e.code === 'KeyW') dy = -1;
+                else if (e.code === 'ArrowDown' || e.code === 'KeyS') dy = 1;
+                if (dx !== 0 || dy !== 0) {
+                    e.preventDefault();
+                    moveShape(dx, dy);
+                    return;
+                }
+            }
+
+            // S - пропуск хода (если не используется для движения)
+            if (e.code === 'KeyS' && gameActive && !(botMode && botPlayers.includes(currentPlayer)) && !(placementActive && !waitingForRoll && gameMode === 'predefined')) {
                 skipTurn(false);
+                e.preventDefault();
+                return;
+            }
+
+            // Esc: открыть/закрыть настройки (если ничего не открыто) или закрыть текущее модальное окно
+            if (e.code === 'Escape') {
+                e.preventDefault();
+                if (settingsModal.style.display === 'flex') {
+                    closeModal();
+                } else if (helpModal.style.display === 'flex') {
+                    closeHelpModal();
+                } else {
+                    openModal();
+                }
+                return;
+            }
+
+            // Q - открыть/закрыть справочник
+            if (e.code === 'KeyQ') {
+                e.preventDefault();
+                if (helpModal.style.display === 'flex') {
+                    closeHelpModal();
+                } else {
+                    openHelpModal();
+                }
+                return;
+            }
+
+            // N - новая игра
+            if (e.code === 'KeyN') {
+                e.preventDefault();
+                newGame();
+                return;
             }
         });
     }
