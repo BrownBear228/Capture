@@ -684,3 +684,126 @@ input:checked + .slider:before {
         gap: 16px;
     }
 }
+
+/* Кнопка справочника в левой панели */
+.help-button {
+    background: #3b2a1f;
+    border: none;
+    color: #f7e5c2;
+    font-size: 1.1rem;
+    font-weight: bold;
+    padding: 10px 16px;
+    border-radius: 40px;
+    cursor: pointer;
+    transition: all 0.15s;
+    box-shadow: 0 2px 6px black;
+    width: 100%;
+    margin-top: 8px;
+}
+.help-button:hover {
+    background: #5e4230;
+    transform: scale(0.97);
+    color: white;
+}
+
+/* Модальное окно справочника — две колонки, светлый текст */
+.help-modal .modal-content {
+    max-width: 700px;
+    background: #2c2c2c;
+    color: #f0e6d2;
+}
+.modal-body.two-columns {
+    display: flex;
+    gap: 24px;
+    padding: 20px;
+}
+.help-column {
+    flex: 1;
+}
+.help-section {
+    margin-bottom: 24px;
+}
+.help-section h4 {
+    color: #ffd966;
+    border-left: 4px solid #ffd966;
+    padding-left: 10px;
+    margin-bottom: 12px;
+}
+.help-section p, .help-section ul {
+    font-size: 0.95rem;
+    line-height: 1.4;
+    color: #e0d6c0;
+}
+.help-section ul {
+    margin-left: 20px;
+    padding-left: 0;
+}
+.help-section li {
+    margin: 8px 0;
+}
+kbd {
+    background: #1e1e1e;
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-family: monospace;
+    font-weight: bold;
+    color: #ffd966;
+    border: 1px solid #5e4230;
+    display: inline-block;
+    margin-right: 4px;
+}
+.highlight-green { color: #8bc34a; font-weight: bold; }
+.highlight-orange { color: #ffb347; font-weight: bold; }
+.highlight-gray { color: #cccccc; font-weight: bold; }
+
+/* Исправление дёрганья экрана */
+canvas {
+    will-change: transform;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+}
+.game-container {
+    transform: translateZ(0);
+}
+
+.top-left-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-right: 16px;
+}
+.round-button {
+    font-size: 2rem;
+    cursor: pointer;
+    background: #3b2a1f;
+    width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    box-shadow: 0 5px 12px rgba(0,0,0,0.3);
+    transition: 0.2s;
+}
+.round-button:hover {
+    background: #5e4230;
+    transform: scale(1.02);
+}
+
+/* Две колонки в справочнике */
+.modal-body.two-columns {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 24px;
+    justify-content: space-between;
+}
+.help-column {
+    flex: 1;
+    min-width: 0;
+}
+/* Для маленьких экранов — чтобы не ломалось */
+@media (max-width: 600px) {
+    .modal-body.two-columns {
+        flex-direction: column !important;
+    }
+}
