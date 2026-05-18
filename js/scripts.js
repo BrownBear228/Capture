@@ -51,14 +51,11 @@
     let longPressTimer = null;
     let isLongPress = false;
 
-    // ---------------------- Определение мобильного устройства (исправлено для всех планшетов) ------------------
+    // ---------------------- Определение мобильного устройства ------------------
     function isMobileDevice() {
-        // 1. По user agent (телефоны и планшеты с явным указанием)
         if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|Windows Phone/i.test(navigator.userAgent)) {
             return true;
         }
-        // 2. Для планшетов, которые маскируются под десктоп (например, некоторые Android-планшеты)
-        //    Проверяем: наличие сенсорного экрана И ширина экрана <= 1024 пикселей
         if (window.innerWidth <= 1024 && (navigator.maxTouchPoints > 1 || 'ontouchstart' in window)) {
             return true;
         }
@@ -83,7 +80,6 @@
     const turnCountDisplay = document.getElementById('turnCountDisplay');
     const timerDisplay = document.getElementById('timerDisplay');
 
-    // Мобильные элементы
     const hamburgerBtn = document.getElementById('hamburgerBtn');
     const mobileDrawer = document.getElementById('mobileDrawer');
     const drawerOverlay = document.getElementById('drawerOverlay');
@@ -99,7 +95,6 @@
     const mobileTurnCount = document.getElementById('mobileTurnCount');
     const mobileTimerDisplay = document.getElementById('mobileTimerDisplay');
 
-    // Модальные окна
     const settingsIcon = document.getElementById('settingsIcon');
     const settingsModal = document.getElementById('settingsModal');
     const closeModalSpan = document.querySelector('.close-modal');
@@ -400,7 +395,7 @@
     }
 
     // ---------------------- Игровая логика ------------------
-    function areAdjacentByEdge(rect1, rect2) {
+    function areAdjacentByEdge(rect1, rect2) { /* ... */ 
         const r1_left = rect1.x, r1_right = rect1.x + rect1.w - 1, r1_top = rect1.y, r1_bottom = rect1.y + rect1.h - 1;
         const r2_left = rect2.x, r2_right = rect2.x + rect2.w - 1, r2_top = rect2.y, r2_bottom = rect2.y + rect2.h - 1;
         const x_overlap = (r1_left <= r2_right && r1_right >= r2_left);
@@ -1055,9 +1050,15 @@
     closeHelpBtn.addEventListener('click', closeHelpModal);
     window.addEventListener('click', (e) => { if (e.target === helpModal) closeHelpModal(); });
 
+    // ---------------------- Исправленная newGame ------------------
     function newGame() {
-        clearPendingBot();
+        // Сначала отключаем игру, чтобы старые боты вышли
+        gameActive = false;
+        // Останавливаем таймер
         stopTimer();
+        // Полностью очищаем всё, связанное с ботами
+        clearPendingBot();        // отменяем таймауты и сбрасываем isBotThinking
+        // Пересоздаём состояние игры
         timerSeconds = 0;
         updateTimerDisplay();
         rectangles = [];
@@ -1073,11 +1074,13 @@
         turnCounter = 0;
         activePlayers = [...positions];
         eliminatedOrder = [];
-        gameActive = true;
         availableMoves = [];
+        // Включаем игру только после полной перезагрузки всех данных
+        gameActive = true;
         updateUI();
         drawBoard();
         startTimer();
+        // Если нужно, запускаем бота для нового игрока 1
         if (simulationMode || (botMode && botPlayers.includes(currentPlayer))) {
             maybeBotTurn();
         }
@@ -1124,7 +1127,6 @@
     window.addEventListener('resize', handleResize);
 
     function init() {
-        // Обновлённое определение мобильного устройства (распознаёт планшеты по ширине и тачу)
         if (isMobileDevice()) {
             document.body.classList.add('mobile-device');
         } else {
