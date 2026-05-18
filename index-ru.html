@@ -1,14 +1,39 @@
+<!-- index-ru.html (русская версия, аналогичные изменения) -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Захват</title>
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
 <div class="game-wrapper">
     <div class="game-container">
+        <button class="hamburger-btn" id="hamburgerBtn" aria-label="Меню">☰</button>
+        <div id="mobileDrawer" class="mobile-drawer">
+            <div class="drawer-header">
+                <h3>Информация</h3>
+                <button class="drawer-close" id="drawerCloseBtn">✕</button>
+            </div>
+            <div class="drawer-content">
+                <div class="drawer-score-panel" id="mobileScorePanel"></div>
+                <div class="drawer-turn-info">
+                    <div>Ход: <span id="mobileTurnText">Игрок 1</span></div>
+                    <div>Ход #: <span id="mobileTurnCount">0</span></div>
+                    <div>⏱️ <span id="mobileTimerDisplay">00:00</span></div>
+                </div>
+                <div class="drawer-buttons">
+                    <button id="mobileRollBtn" class="mobile-roll-btn">🎲 Бросить кубики</button>
+                    <button id="mobileSkipBtn" class="mobile-skip-btn">⏭ Пропустить ход</button>
+                    <button id="mobileNewGameBtn" class="mobile-newgame-btn">🔄 Новая игра</button>
+                    <button id="mobileSettingsBtn" class="mobile-settings-btn">⚙️ Настройки</button>
+                    <button id="mobileHelpBtn" class="mobile-help-btn">❓ Справка</button>
+                </div>
+            </div>
+        </div>
+        <div id="drawerOverlay" class="drawer-overlay"></div>
+
         <div class="game-top-row">
             <div class="top-left-buttons">
                 <div class="round-button" id="settingsIcon">⚙️</div>
@@ -34,7 +59,6 @@
     </div>
 </div>
 
-<!-- Модальное окно настроек -->
 <div id="settingsModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
@@ -65,7 +89,7 @@
                         <div id="customSizeInputs" class="custom-size-inputs" style="display: none;">
                             <input type="number" id="customCols" min="8" max="58" value="39" step="1"> ×
                             <input type="number" id="customRows" min="8" max="31" value="28" step="1">
-                            <div id="sizeWarning" class="warning-message" style="display: none; color: #ffaa66; font-size: 0.8rem;">Минимальный размер поля: <span id="minFieldSizeSpan">0</span>×<span id="minFieldSizeSpan2">0</span></div>
+                            <div id="sizeWarning" class="warning-message" style="display: none;">Минимальный размер поля: <span id="minFieldSizeSpan">0</span>×<span id="minFieldSizeSpan2">0</span></div>
                         </div>
                     </div>
                 </div>
@@ -113,7 +137,6 @@
     </div>
 </div>
 
-<!-- Модальное окно справочника -->
 <div id="helpModal" class="modal help-modal">
     <div class="modal-content">
         <div class="modal-header">
@@ -121,21 +144,29 @@
             <span class="close-help-modal">&times;</span>
         </div>
         <div class="modal-body two-columns">
-            <div class="help-column">
+            <div class="help-column desktop-help">
                 <div class="help-section">
                     <h4>🎮 Горячие клавиши</h4>
                     <ul>
-                        <li><kbd>Enter</kbd> — бросить кубики / подтвердить размещение</li>
+                        <li><kbd>Enter</kbd> — бросить / подтвердить</li>
                         <li><kbd>P</kbd> — пропустить ход</li>
-                        <li><kbd>R</kbd> — повернуть прямоугольник</li>
-                        <li><kbd>W</kbd> / <kbd>▲</kbd> — вверх</li>
-                        <li><kbd>S</kbd> / <kbd>▼</kbd> — вниз</li>
-                        <li><kbd>A</kbd> / <kbd>◀</kbd> — влево</li>
-                        <li><kbd>D</kbd> / <kbd>▶</kbd> — вправо</li>
-                        <li><kbd>Esc</kbd> — открыть/закрыть настройки</li>
-                        <li><kbd>Q</kbd> — открыть/закрыть справочник</li>
+                        <li><kbd>R</kbd> — повернуть</li>
+                        <li><kbd>W/A/S/D</kbd> или стрелки — движение</li>
+                        <li><kbd>Esc</kbd> — настройки</li>
+                        <li><kbd>Q</kbd> — справка</li>
                         <li><kbd>N</kbd> — новая игра</li>
-                        <li><kbd>L</kbd> — переключить язык (русский/английский)</li>
+                        <li><kbd>L</kbd> — переключить язык</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="help-column mobile-help">
+                <div class="help-section">
+                    <h4>📱 Управление пальцем</h4>
+                    <ul>
+                        <li>👆 <strong>Тап по полю</strong> — бросить кубики</li>
+                        <li>🖐️ <strong>Перетаскивание</strong> — двигать прямоугольник</li>
+                        <li>👆 <strong>Тап без движения</strong> — поставить фигуру</li>
+                        <li>📋 <strong>Меню ☰</strong> — очки, ход, таймер, действия</li>
                     </ul>
                 </div>
             </div>
@@ -145,7 +176,7 @@
                     <p>Размер прямоугольника <strong>строго по кубикам</strong>. Вы можете:</p>
                     <ul>
                         <li><span class="highlight-green">Занять пустую область</span> (прилегает к вашей территории).</li>
-                        <li><span class="highlight-orange">Захватить вражеский блок</span> целиком (если он касается вашей территории и имеет нужный размер).</li>
+                        <li><span class="highlight-orange">Захватить вражеский блок</span> целиком (если касается вашей территории и нужный размер).</li>
                         <li><span class="highlight-gray">Захватить нейтральный блок</span> (серый, уже существующий).</li>
                     </ul>
                     <p>Накрытие стартовой клетки → выбывание врага, его земли переходят соседям.</p>
@@ -166,7 +197,6 @@
     </div>
 </div>
 
-<!-- Модальное окно результатов -->
 <div id="gameResultModal" class="modal result-modal">
     <div class="modal-content result-modal-content">
         <div class="modal-header">
@@ -185,7 +215,6 @@
     </div>
 </div>
 
-<!-- Модальное окно подтверждения -->
 <div id="confirmModal" class="modal confirm-modal">
     <div class="modal-content confirm-content">
         <div class="modal-header">
