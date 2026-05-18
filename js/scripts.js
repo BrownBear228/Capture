@@ -45,6 +45,10 @@
     let START_CELLS = {};
     let redrawScheduled = false;
 
+    // Глобальное поколение игры — при newGame() увеличивается
+    let gameGeneration = 0;
+    let currentGameGeneration = 0; // копия для проверки в асинхронных функциях
+
     // Мобильные флаги
     let touchMoved = false;
     let touchStartX = 0, touchStartY = 0;
@@ -177,7 +181,8 @@
             customRowsVal: parseInt(customRows.value, 10),
             botsEnabled: botsToggle.checked,
             simulationEnabled: simulationToggle.checked,
-            highlightEnabled: highlightToggle.checked
+            highlightEnabled: highlightToggle.checked,
+            gameGeneration: gameGeneration
         };
         localStorage.setItem(SAVE_KEY, JSON.stringify(state));
     }
@@ -226,6 +231,8 @@
             for (let radio of colorModeRadios) {
                 if (radio.value === state.colorMode) radio.checked = true;
             }
+            gameGeneration = state.gameGeneration || 0;
+            currentGameGeneration = gameGeneration;
             updateCanvasSize();
             updateStartCells();
             applyColorBlindMode(state.colorMode);
@@ -395,7 +402,7 @@
     }
 
     // ---------------------- Игровая логика ------------------
-    function areAdjacentByEdge(rect1, rect2) { /* ... */ 
+    function areAdjacentByEdge(rect1, rect2) {
         const r1_left = rect1.x, r1_right = rect1.x + rect1.w - 1, r1_top = rect1.y, r1_bottom = rect1.y + rect1.h - 1;
         const r2_left = rect2.x, r2_right = rect2.x + rect2.w - 1, r2_top = rect2.y, r2_bottom = rect2.y + rect2.h - 1;
         const x_overlap = (r1_left <= r2_right && r1_right >= r2_left);
@@ -644,6 +651,7 @@
         isBotThinking = false;
     }
     async function botTurn() {
+        const myGeneration = currentGameGeneration; // запоминаем поколение на момент запуска
         if (!gameActive || isBotThinking) return;
         const isBot = (botMode && botPlayers.includes(currentPlayer)) || simulationMode;
         if (!isBot) return;
@@ -651,7 +659,7 @@
         clearPendingBot();
         await new Promise(r => { pendingBotTimeout = setTimeout(r, 400); });
         pendingBotTimeout = null;
-        if (!gameActive) { isBotThinking = false; return; }
+        if (!gameActive || myGeneration !== currentGameGeneration) { isBotThinking = false; return; }
         if (waitingForRoll) {
             diceN = Math.floor(Math.random() * 6) + 1;
             diceM = Math.floor(Math.random() * 6) + 1;
@@ -660,19 +668,19 @@
             updateUI(); drawBoard();
             await new Promise(r => { pendingBotTimeout = setTimeout(r, 300); });
             pendingBotTimeout = null;
-            if (!gameActive) { isBotThinking = false; return; }
+            if (!gameActive || myGeneration !== currentGameGeneration) { isBotThinking = false; return; }
         }
         const move = getBestMove(currentPlayer, diceN, diceM);
         if (move && tryMakeMove(move.x, move.y, move.w, move.h)) {
             updateUI(); drawBoard();
             await new Promise(r => { pendingBotTimeout = setTimeout(r, 500); });
             pendingBotTimeout = null;
-            if (!gameActive) { isBotThinking = false; return; }
+            if (!gameActive || myGeneration !== currentGameGeneration) { isBotThinking = false; return; }
             finishMove();
         } else {
             updateUI(); await new Promise(r => { pendingBotTimeout = setTimeout(r, 500); });
             pendingBotTimeout = null;
-            if (!gameActive) { isBotThinking = false; return; }
+            if (!gameActive || myGeneration !== currentGameGeneration) { isBotThinking = false; return; }
             skipTurn(true);
         }
         isBotThinking = false;
@@ -1050,15 +1058,15 @@
     closeHelpBtn.addEventListener('click', closeHelpModal);
     window.addEventListener('click', (e) => { if (e.target === helpModal) closeHelpModal(); });
 
-    // ---------------------- Исправленная newGame ------------------
+    // ---------------------- Исправленная newGame с поколением ------------------
     function newGame() {
-        // Сначала отключаем игру, чтобы старые боты вышли
-        gameActive = false;
-        // Останавливаем таймер
+        // Останавливаем всё, что могло работать в старой игре
         stopTimer();
-        // Полностью очищаем всё, связанное с ботами
-        clearPendingBot();        // отменяем таймауты и сбрасываем isBotThinking
-        // Пересоздаём состояние игры
+        clearPendingBot();
+        // Увеличиваем глобальное поколение игры, чтобы старые асинхронные боты вышли
+        gameGeneration++;
+        currentGameGeneration = gameGeneration;
+        // Теперь пересоздаём состояние
         timerSeconds = 0;
         updateTimerDisplay();
         rectangles = [];
@@ -1074,13 +1082,11 @@
         turnCounter = 0;
         activePlayers = [...positions];
         eliminatedOrder = [];
-        availableMoves = [];
-        // Включаем игру только после полной перезагрузки всех данных
         gameActive = true;
+        availableMoves = [];
         updateUI();
         drawBoard();
         startTimer();
-        // Если нужно, запускаем бота для нового игрока 1
         if (simulationMode || (botMode && botPlayers.includes(currentPlayer))) {
             maybeBotTurn();
         }
