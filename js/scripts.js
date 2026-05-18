@@ -51,11 +51,10 @@
     let longPressTimer = null;
     let isLongPress = false;
 
-    // ---------------------- Определение мобильного устройства ------------------
+    // ---------------------- Определение мобильного устройства (только по User Agent) ------------------
     function isMobileDevice() {
-        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|Windows Phone/i.test(navigator.userAgent) || 
-               ('ontouchstart' in window) || 
-               (navigator.maxTouchPoints > 0);
+        // Только явные мобильные устройства, без проверки на touch (чтобы ноутбуки не считались телефонами)
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|Windows Phone/i.test(navigator.userAgent);
     }
 
     // ---------------------- Локализация --------------------------
@@ -1117,7 +1116,7 @@
     window.addEventListener('resize', handleResize);
 
     function init() {
-        // Определяем мобильное устройство и добавляем класс
+        // Определяем мобильное устройство ТОЛЬКО по User Agent (без проверки на touch)
         if (isMobileDevice()) {
             document.body.classList.add('mobile-device');
         } else {
