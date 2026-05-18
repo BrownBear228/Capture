@@ -51,6 +51,13 @@
     let longPressTimer = null;
     let isLongPress = false;
 
+    // ---------------------- Определение мобильного устройства ------------------
+    function isMobileDevice() {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|Windows Phone/i.test(navigator.userAgent) || 
+               ('ontouchstart' in window) || 
+               (navigator.maxTouchPoints > 0);
+    }
+
     // ---------------------- Локализация --------------------------
     const isRussian = window.location.pathname.includes('index-ru.html');
     function getPlayerName(player) {
@@ -275,8 +282,8 @@
         updateMinFieldSizeWarning();
     });
     function updateCanvasSize() {
-        if (window.innerWidth <= 768) {
-            // Мобильная версия: canvas должен вписываться в экран с отступами 5px, сохраняя пропорции COLS/ROWS
+        const isMobile = document.body.classList.contains('mobile-device');
+        if (isMobile) {
             const maxWidth = window.innerWidth - 10;
             const maxHeight = window.innerHeight - 10;
             const ratio = COLS / ROWS;
@@ -834,7 +841,6 @@
         longPressTimer = setTimeout(() => {
             isLongPress = true;
             rotateShape();
-            // Предотвращаем последующее событие tap
             e.preventDefault();
         }, 500);
     }
@@ -1111,6 +1117,13 @@
     window.addEventListener('resize', handleResize);
 
     function init() {
+        // Определяем мобильное устройство и добавляем класс
+        if (isMobileDevice()) {
+            document.body.classList.add('mobile-device');
+        } else {
+            document.body.classList.remove('mobile-device');
+        }
+
         const loaded = loadGameStateFromLocalStorage();
         if (!loaded) updateGlobalFromDOM();
         else updateGlobalFromDOM();
