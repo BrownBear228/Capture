@@ -1,4 +1,3 @@
-// scripts.js (добавлен правый клик для вращения)
 (function(){
     // ---------------------- Глобальные переменные --------------------------
     let COLS = 39;
@@ -49,6 +48,8 @@
     // Мобильные флаги
     let touchMoved = false;
     let touchStartX = 0, touchStartY = 0;
+    let longPressTimer = null;
+    let isLongPress = false;
 
     // ---------------------- Локализация --------------------------
     const isRussian = window.location.pathname.includes('index-ru.html');
@@ -78,6 +79,7 @@
     const mobileNewGameBtn = document.getElementById('mobileNewGameBtn');
     const mobileSettingsBtn = document.getElementById('mobileSettingsBtn');
     const mobileHelpBtn = document.getElementById('mobileHelpBtn');
+    const mobileLangBtn = document.getElementById('mobileLangBtn');
     const mobileScorePanel = document.getElementById('mobileScorePanel');
     const mobileTurnText = document.getElementById('mobileTurnText');
     const mobileTurnCount = document.getElementById('mobileTurnCount');
@@ -274,14 +276,25 @@
     });
     function updateCanvasSize() {
         if (window.innerWidth <= 768) {
-            const containerWidth = canvas.parentElement.clientWidth - 10;
-            const newCellSize = Math.floor(containerWidth / COLS);
-            CELL_SIZE = Math.max(12, Math.min(32, newCellSize));
+            // Мобильная версия: canvas должен вписываться в экран с отступами 5px, сохраняя пропорции COLS/ROWS
+            const maxWidth = window.innerWidth - 10;
+            const maxHeight = window.innerHeight - 10;
+            const ratio = COLS / ROWS;
+            let newWidth = maxWidth;
+            let newHeight = newWidth / ratio;
+            if (newHeight > maxHeight) {
+                newHeight = maxHeight;
+                newWidth = newHeight * ratio;
+            }
+            CELL_SIZE = Math.floor(newWidth / COLS);
+            if (CELL_SIZE < 12) CELL_SIZE = 12;
+            CANVAS_W = COLS * CELL_SIZE;
+            CANVAS_H = ROWS * CELL_SIZE;
         } else {
             CELL_SIZE = 20;
+            CANVAS_W = COLS * CELL_SIZE;
+            CANVAS_H = ROWS * CELL_SIZE;
         }
-        CANVAS_W = COLS * CELL_SIZE;
-        CANVAS_H = ROWS * CELL_SIZE;
         canvas.width = CANVAS_W;
         canvas.height = CANVAS_H;
         canvas.style.width = `${CANVAS_W}px`;
@@ -341,7 +354,7 @@
                         </div>
                     </div>`;
         }
-        html += `<div class="neutral-score-card"><div class="neutral-badge"></div><div class="neutral-info"><div class="neutral-name">${isRussian ? "Нейтральные" : "Neutral"}</div><div class="neutral-score">${neutralCells}</div></div></div>`;
+        html += `<div class="neutral-score-card"><div class="neutral-badge" style="background:#aaaaaa;"></div><div class="neutral-info"><div class="neutral-name">${isRussian ? "Нейтральные" : "Neutral"}</div><div class="neutral-score">${neutralCells}</div></div></div>`;
         if(sideScorePanel) sideScorePanel.innerHTML = html;
         if(mobileScorePanel) {
             let mobileHtml = '';
@@ -813,8 +826,27 @@
     }
 
     // ---------------------- Обработчики мыши/тач ------------------
+    function startLongPress(e) {
+        if (!placementActive || waitingForRoll) return;
+        if (simulationMode) return;
+        if (botMode && botPlayers.includes(currentPlayer)) return;
+        isLongPress = false;
+        longPressTimer = setTimeout(() => {
+            isLongPress = true;
+            rotateShape();
+            // Предотвращаем последующее событие tap
+            e.preventDefault();
+        }, 500);
+    }
+    function cancelLongPress() {
+        if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+        }
+    }
     function handleTouchStart(e) {
         e.preventDefault();
+        cancelLongPress();
         const rectCanvas = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rectCanvas.width;
         const scaleY = canvas.height / rectCanvas.height;
@@ -826,9 +858,13 @@
         touchStartX = cellX;
         touchStartY = cellY;
         touchMoved = false;
+        startLongPress(e);
     }
     function handleTouchMove(e) {
         e.preventDefault();
+        if (longPressTimer) {
+            cancelLongPress();
+        }
         if (!placementActive || waitingForRoll) return;
         const rectCanvas = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rectCanvas.width;
@@ -853,6 +889,7 @@
     }
     function handleTouchEnd(e) {
         e.preventDefault();
+        cancelLongPress();
         if (!gameActive) return;
         if (simulationMode) return;
         if (botMode && botPlayers.includes(currentPlayer)) return;
@@ -860,7 +897,7 @@
             rollDice();
             return;
         }
-        if (placementActive) {
+        if (placementActive && !isLongPress) {
             if (!touchMoved) {
                 if (tryMakeMove(currentShape.x, currentShape.y, currentShape.w, currentShape.h)) {
                     placementActive = false;
@@ -873,6 +910,7 @@
             }
         }
         touchMoved = false;
+        isLongPress = false;
     }
     function handleMouseMove(e) {
         if (simulationMode) return;
@@ -911,7 +949,6 @@
             drawBoard();
         }
     }
-    // Правый клик для вращения (только десктоп)
     function handleCanvasContextMenu(e) {
         e.preventDefault();
         if (!gameActive) return;
@@ -1050,14 +1087,15 @@
         localStorage.setItem('wasHelpOpen', wasHelpOpen);
         window.location.href = isRussian ? 'index.html' : 'index-ru.html';
     }
-    langButton.addEventListener('click', switchLanguage);
+    if (langButton) langButton.addEventListener('click', switchLanguage);
+    if (mobileLangBtn) mobileLangBtn.addEventListener('click', switchLanguage);
 
     // ---------------------- Мобильная панель ------------------
     function openDrawer() { mobileDrawer.classList.add('open'); drawerOverlay.classList.add('open'); }
     function closeDrawer() { mobileDrawer.classList.remove('open'); drawerOverlay.classList.remove('open'); }
-    hamburgerBtn.addEventListener('click', openDrawer);
-    drawerCloseBtn.addEventListener('click', closeDrawer);
-    drawerOverlay.addEventListener('click', closeDrawer);
+    if (hamburgerBtn) hamburgerBtn.addEventListener('click', openDrawer);
+    if (drawerCloseBtn) drawerCloseBtn.addEventListener('click', closeDrawer);
+    if (drawerOverlay) drawerOverlay.addEventListener('click', closeDrawer);
     if(mobileRollBtn) mobileRollBtn.addEventListener('click', rollDice);
     if(mobileSkipBtn) mobileSkipBtn.addEventListener('click', skipTurnWithConfirm);
     if(mobileNewGameBtn) mobileNewGameBtn.addEventListener('click', newGameWithConfirm);
@@ -1093,7 +1131,7 @@
         canvas.addEventListener('click', handleCanvasClick);
         canvas.addEventListener('mousemove', handleMouseMove);
         canvas.addEventListener('mouseleave', () => drawBoard());
-        canvas.addEventListener('contextmenu', handleCanvasContextMenu); // правый клик для вращения
+        canvas.addEventListener('contextmenu', handleCanvasContextMenu);
         canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
         canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
         canvas.addEventListener('touchend', handleTouchEnd);
