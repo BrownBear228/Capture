@@ -64,7 +64,7 @@ body {
     transform: scale(0.94);
 }
 
-/* Выдвижная панель */
+/* Выдвижная панель (мобильная) */
 .mobile-drawer {
     position: fixed;
     bottom: 0;
@@ -641,54 +641,64 @@ kbd {
 .highlight-orange { color: #ffb347; font-weight: bold; }
 .highlight-gray { color: #cccccc; font-weight: bold; }
 
-/* Мобильная адаптация */
-@media (max-width: 768px) {
-    .game-container {
-        padding: 10px;
-        gap: 10px;
-        width: 100%;
-        box-sizing: border-box;
-        background: transparent;
-        box-shadow: none;
-    }
-    .left-panel, .info-panel, .top-left-buttons {
-        display: none;
-    }
-    .hamburger-btn {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    canvas {
-        margin: 5px auto;
-        width: auto;
-        height: auto;
-        max-width: calc(100% - 10px);
-        max-height: calc(100vh - 10px);
-        box-shadow: 0 0 0 2px #d9c8a9, 0 5px 15px rgba(0,0,0,0.3);
-    }
-    .game-top-row {
-        justify-content: center;
-    }
-    .desktop-help {
-        display: none;
-    }
-    .mobile-help {
-        display: block;
-    }
-    .modal-content {
-        max-width: 95%;
-    }
-    .help-modal .modal-body.two-columns {
-        flex-direction: column !important;
-    }
+/* Мобильная версия — при наличии класса .mobile-device */
+body.mobile-device .left-panel,
+body.mobile-device .info-panel,
+body.mobile-device .top-left-buttons {
+    display: none;
 }
 
-@media (min-width: 769px) {
-    .mobile-help, .hamburger-btn, .mobile-drawer, .drawer-overlay {
+body.mobile-device .hamburger-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+body.mobile-device canvas {
+    margin: 5px auto;
+    width: auto;
+    height: auto;
+    max-width: calc(100% - 10px);
+    max-height: calc(100vh - 10px);
+    box-shadow: 0 0 0 2px #d9c8a9, 0 5px 15px rgba(0,0,0,0.3);
+}
+
+body.mobile-device .game-container {
+    padding: 10px;
+    gap: 10px;
+    width: 100%;
+    box-sizing: border-box;
+    background: transparent;
+    box-shadow: none;
+}
+
+body.mobile-device .game-top-row {
+    justify-content: center;
+}
+
+body.mobile-device .desktop-help {
+    display: none;
+}
+body.mobile-device .mobile-help {
+    display: block;
+}
+/* Для десктопа — скрываем мобильную помощь */
+body:not(.mobile-device) .mobile-help {
+    display: none;
+}
+body:not(.mobile-device) .desktop-help {
+    display: block;
+}
+
+/* Адаптация под ширину для десктопа (чтобы не ломать) */
+@media (max-width: 768px) {
+    /* Если по каким-то причинам класс не добавился, но ширина маленькая — тоже скрываем десктопный интерфейс */
+    body:not(.mobile-device) .left-panel,
+    body:not(.mobile-device) .info-panel,
+    body:not(.mobile-device) .top-left-buttons {
         display: none;
     }
-    .desktop-help {
-        display: block;
+    body:not(.mobile-device) .hamburger-btn {
+        display: flex;
     }
 }
