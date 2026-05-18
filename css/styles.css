@@ -1,4 +1,3 @@
-/* styles.css — полная версия с исправленной обводкой нейтральной карточки */
 * {
     user-select: none;
     -webkit-tap-highlight-color: transparent;
@@ -219,7 +218,7 @@ body {
     color: #cccccc;
 }
 
-/* Нейтральный кружок — всегда серый */
+/* Нейтральный кружок и обводка */
 .neutral-badge {
     width: 36px !important;
     height: 36px !important;
@@ -229,13 +228,9 @@ body {
     display: inline-block;
     flex-shrink: 0;
 }
-
-/* Исправление обводки нейтральной карточки — серая линия слева */
 .neutral-score-card {
     border-left-color: #aaaaaa !important;
 }
-
-/* Для мобильной панели уменьшаем кружок */
 .drawer-score-panel .neutral-badge {
     width: 24px !important;
     height: 24px !important;
@@ -281,8 +276,6 @@ canvas {
     box-shadow: 0 0 0 4px #d9c8a9, 0 10px 25px rgba(0,0,0,0.3);
     cursor: crosshair;
     background: #2a2a2a;
-    width: auto;
-    height: auto;
 }
 .info-panel {
     background: #ecd9b4;
@@ -358,7 +351,7 @@ button:hover {
     transform: scale(0.96);
 }
 
-/* Модальные окна — весь текст белый */
+/* Модальные окна */
 .modal {
     display: none;
     position: fixed;
@@ -655,6 +648,8 @@ kbd {
         gap: 10px;
         width: 100%;
         box-sizing: border-box;
+        background: transparent;
+        box-shadow: none;
     }
     .left-panel, .info-panel, .top-left-buttons {
         display: none;
@@ -666,8 +661,10 @@ kbd {
     }
     canvas {
         margin: 5px auto;
-        width: calc(100% - 10px);
+        width: auto;
         height: auto;
+        max-width: calc(100% - 10px);
+        max-height: calc(100vh - 10px);
         box-shadow: 0 0 0 2px #d9c8a9, 0 5px 15px rgba(0,0,0,0.3);
     }
     .game-top-row {
