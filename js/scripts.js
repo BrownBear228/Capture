@@ -51,10 +51,18 @@
     let longPressTimer = null;
     let isLongPress = false;
 
-    // ---------------------- Определение мобильного устройства (только по User Agent) ------------------
+    // ---------------------- Определение мобильного устройства (исправлено для всех планшетов) ------------------
     function isMobileDevice() {
-        // Только явные мобильные устройства, без проверки на touch (чтобы ноутбуки не считались телефонами)
-        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|Windows Phone/i.test(navigator.userAgent);
+        // 1. По user agent (телефоны и планшеты с явным указанием)
+        if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|Windows Phone/i.test(navigator.userAgent)) {
+            return true;
+        }
+        // 2. Для планшетов, которые маскируются под десктоп (например, некоторые Android-планшеты)
+        //    Проверяем: наличие сенсорного экрана И ширина экрана <= 1024 пикселей
+        if (window.innerWidth <= 1024 && (navigator.maxTouchPoints > 1 || 'ontouchstart' in window)) {
+            return true;
+        }
+        return false;
     }
 
     // ---------------------- Локализация --------------------------
@@ -1116,7 +1124,7 @@
     window.addEventListener('resize', handleResize);
 
     function init() {
-        // Определяем мобильное устройство ТОЛЬКО по User Agent (без проверки на touch)
+        // Обновлённое определение мобильного устройства (распознаёт планшеты по ширине и тачу)
         if (isMobileDevice()) {
             document.body.classList.add('mobile-device');
         } else {
