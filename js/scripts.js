@@ -1,4 +1,5 @@
 (function(){
+    // ---------------------- Глобальные переменные --------------------------
     let COLS = 39;
     let ROWS = 28;
     let START_SIZE = 2;
@@ -18,7 +19,6 @@
     const NEUTRAL_COLOR = '#aaaaaa';
     const GRID_COLOR = '#c0b9a4';
     const RECT_BORDER = '#000000';
-    const GHOST_STYLE = 'rgba(255, 255, 200, 0.4)';
     const PREDEFINED_GHOST_STYLE = 'rgba(100, 200, 255, 0.5)';
     const KILL_GHOST_STYLE = 'rgba(255, 80, 80, 0.6)';
     const AVAILABLE_HIGHLIGHT = 'rgba(50, 255, 50, 0.3)';
@@ -28,9 +28,6 @@
     let currentPlayer = 1;
     let diceN = 0, diceM = 0;
     let waitingForRoll = true;
-    let selectionMode = false;
-    let firstCorner = null;
-    let currentMsg = "Бросьте кубики, чтобы начать ход";
 
     let turnCounter = 0;
     let activePlayers = [1,2,3,4];
@@ -46,8 +43,6 @@
     let simulationMode = false;
     let pendingBotTimeout = null;
 
-    let gameMode = 'predefined';
-
     let placementActive = false;
     let currentShape = { x: 0, y: 0, w: 0, h: 0 };
 
@@ -57,28 +52,17 @@
     let START_CELLS = {};
 
     let redrawScheduled = false;
-    function scheduleRedraw() {
-        if (redrawScheduled) return;
-        redrawScheduled = true;
-        requestAnimationFrame(() => {
-            drawBoard();
-            redrawScheduled = false;
-        });
+
+    let wasSettingsOpen = false;
+    let wasHelpOpen = false;
+
+    // ---------------------- Локализация --------------------------
+    const isRussian = window.location.pathname.includes('index-ru.html');
+    function getPlayerName(player) {
+        return `${isRussian ? "Игрок" : "Player"} ${player}`;
     }
 
-    function updateStartCells() {
-        START_CELLS = {};
-        if (PLAYER_COUNT === 2) {
-            START_CELLS[1] = { x: 0, y: 0 };
-            START_CELLS[2] = { x: COLS - START_SIZE, y: ROWS - START_SIZE };
-        } else {
-            START_CELLS[1] = { x: 0, y: 0 };
-            START_CELLS[2] = { x: COLS - START_SIZE, y: 0 };
-            START_CELLS[3] = { x: 0, y: ROWS - START_SIZE };
-            START_CELLS[4] = { x: COLS - START_SIZE, y: ROWS - START_SIZE };
-        }
-    }
-
+    // ---------------------- DOM элементы --------------------------
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     const turnText = document.getElementById('turnText');
@@ -89,8 +73,6 @@
     const sideScorePanel = document.getElementById('sideScorePanel');
     const turnCountDisplay = document.getElementById('turnCountDisplay');
     const timerDisplay = document.getElementById('timerDisplay');
-    const fieldSizeLabel = document.getElementById('fieldSizeLabel');
-    const botsLabel = document.getElementById('botsLabel');
 
     const settingsIcon = document.getElementById('settingsIcon');
     const settingsModal = document.getElementById('settingsModal');
@@ -112,7 +94,6 @@
     const sizeWarning = document.getElementById('sizeWarning');
     const minFieldSizeSpan = document.getElementById('minFieldSizeSpan');
     const minFieldSizeSpan2 = document.getElementById('minFieldSizeSpan2');
-    const gameModeRadios = document.querySelectorAll('input[name="gameMode"]');
     const highlightToggle = document.getElementById('highlightToggle');
 
     const helpButton = document.getElementById('helpButton');
@@ -120,12 +101,163 @@
     const closeHelpSpan = document.querySelector('.close-help-modal');
     const closeHelpBtn = document.getElementById('closeHelpBtn');
 
-    function clearPendingBot() {
-        if (pendingBotTimeout) {
-            clearTimeout(pendingBotTimeout);
-            pendingBotTimeout = null;
+    const langButton = document.getElementById('langButton');
+
+    // Элементы модального окна подтверждения
+    const confirmModal = document.getElementById('confirmModal');
+    const confirmTitle = document.getElementById('confirmTitle');
+    const confirmMessage = document.getElementById('confirmMessage');
+    const confirmYesBtn = document.getElementById('confirmYesBtn');
+    const confirmNoBtn = document.getElementById('confirmNoBtn');
+    const closeConfirmSpan = document.querySelector('.close-confirm-modal');
+
+    let pendingConfirmAction = null;
+    let pendingConfirmActionType = null;
+
+    let forceStopBot = false;
+
+    // ---------------------- Функции подтверждения --------------------------
+    function showConfirmDialog(title, message, onConfirm, actionType) {
+        if (!gameActive && actionType === 'skipTurn') return;
+        confirmTitle.innerText = title;
+        confirmMessage.innerText = message;
+        pendingConfirmAction = onConfirm;
+        pendingConfirmActionType = actionType;
+        confirmModal.style.display = 'flex';
+    }
+
+    function closeConfirmDialog() {
+        confirmModal.style.display = 'none';
+        pendingConfirmAction = null;
+        pendingConfirmActionType = null;
+    }
+
+    confirmYesBtn.addEventListener('click', () => {
+        if (pendingConfirmAction) pendingConfirmAction();
+        closeConfirmDialog();
+    });
+    confirmNoBtn.addEventListener('click', closeConfirmDialog);
+    closeConfirmSpan.addEventListener('click', closeConfirmDialog);
+    window.addEventListener('click', (e) => {
+        if (e.target === confirmModal) closeConfirmDialog();
+    });
+
+    // ---------------------- Сохранение / загрузка состояния --------------------------
+    const SAVE_KEY = 'capture_game_save';
+
+    function saveGameStateToLocalStorage() {
+        const state = {
+            COLS, ROWS, START_SIZE, PLAYER_COUNT,
+            rectangles, currentPlayer, diceN, diceM, waitingForRoll,
+            turnCounter, activePlayers, eliminatedOrder, gameActive, timerSeconds,
+            placementActive, currentShape,
+            botMode, botPlayers, simulationMode,
+            showAvailableHighlight,
+            colorMode: getSelectedColorMode(),
+            playerCount: PLAYER_COUNT,
+            startSize: START_SIZE,
+            fieldSizeType: radioCustom.checked ? 'custom' : 'standard',
+            customColsVal: parseInt(customCols.value, 10),
+            customRowsVal: parseInt(customRows.value, 10),
+            botsEnabled: botsToggle.checked,
+            simulationEnabled: simulationToggle.checked,
+            highlightEnabled: highlightToggle.checked
+        };
+        localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+    }
+
+    function loadGameStateFromLocalStorage() {
+        const saved = localStorage.getItem(SAVE_KEY);
+        if (!saved) return false;
+        try {
+            const state = JSON.parse(saved);
+            COLS = state.COLS;
+            ROWS = state.ROWS;
+            START_SIZE = state.START_SIZE;
+            PLAYER_COUNT = state.PLAYER_COUNT;
+            rectangles = state.rectangles;
+            currentPlayer = state.currentPlayer;
+            diceN = state.diceN;
+            diceM = state.diceM;
+            waitingForRoll = state.waitingForRoll;
+            turnCounter = state.turnCounter;
+            activePlayers = state.activePlayers;
+            eliminatedOrder = state.eliminatedOrder;
+            gameActive = state.gameActive;
+            timerSeconds = state.timerSeconds;
+            placementActive = state.placementActive;
+            currentShape = state.currentShape;
+            botMode = state.botMode;
+            botPlayers = state.botPlayers;
+            simulationMode = state.simulationMode;
+            showAvailableHighlight = state.highlightEnabled !== undefined ? state.highlightEnabled : true;
+
+            startSizeSlider.value = state.startSize;
+            startSizeValue.textContent = state.startSize;
+            if (state.fieldSizeType === 'custom') {
+                radioCustom.checked = true;
+                customSizeInputs.style.display = 'flex';
+            } else {
+                radioStandard.checked = true;
+                customSizeInputs.style.display = 'none';
+            }
+            customCols.value = state.customColsVal;
+            customRows.value = state.customRowsVal;
+            botsToggle.checked = state.botsEnabled;
+            simulationToggle.checked = state.simulationEnabled;
+            highlightToggle.checked = state.highlightEnabled;
+            for (let radio of playerCountRadios) {
+                if (parseInt(radio.value, 10) === state.playerCount) radio.checked = true;
+            }
+            for (let radio of colorModeRadios) {
+                if (radio.value === state.colorMode) radio.checked = true;
+            }
+            updateCanvasSize();
+            updateStartCells();
+            applyColorBlindMode(state.colorMode);
+            updateBotStatusText();
+            return true;
+        } catch(e) { return false; }
+    }
+
+    function switchLanguage() {
+        // Сохраняем состояние модальных окон и подтверждения (только тип действия)
+        wasSettingsOpen = settingsModal.style.display === 'flex';
+        wasHelpOpen = helpModal.style.display === 'flex';
+        const wasConfirmOpen = confirmModal.style.display === 'flex';
+        if (wasConfirmOpen) {
+            localStorage.setItem('wasConfirmOpen', 'true');
+            localStorage.setItem('confirmActionType', pendingConfirmActionType);
+        } else {
+            localStorage.removeItem('wasConfirmOpen');
+            localStorage.removeItem('confirmActionType');
         }
-        isBotThinking = false;
+        saveGameStateToLocalStorage();
+        localStorage.setItem('wasSettingsOpen', wasSettingsOpen);
+        localStorage.setItem('wasHelpOpen', wasHelpOpen);
+        window.location.href = isRussian ? 'index.html' : 'index-ru.html';
+    }
+
+    if (langButton) {
+        langButton.addEventListener('click', switchLanguage);
+    }
+
+    // ---------------------- Функции обновления UI --------------------------
+    function updateBotStatusText() {
+        if (simulationMode) {
+            if (PLAYER_COUNT === 2) botsStatusText.innerText = isRussian ? "(режим симуляции: оба игрока боты)" : "(simulation mode: both players bots)";
+            else botsStatusText.innerText = isRussian ? "(режим симуляции: все игроки боты)" : "(simulation mode: all players bots)";
+            botsToggle.disabled = true;
+            botsToggle.parentElement.style.opacity = '0.5';
+        } else {
+            if (PLAYER_COUNT === 2) {
+                botsStatusText.innerText = botMode ? (isRussian ? "(игрок 2 — бот)" : "(player 2 is bot)") : (isRussian ? "(игроки оба живые)" : "(both human)");
+            } else {
+                botsStatusText.innerText = botMode ? (isRussian ? "(игроки 2,3,4 — боты)" : "(players 2,3,4 are bots)") : (isRussian ? "(все игроки люди)" : "(all human)");
+            }
+            botsToggle.disabled = false;
+            botsToggle.parentElement.style.opacity = '1';
+        }
     }
 
     function updateControlUI() {
@@ -143,19 +275,9 @@
         }
     }
 
-    function getSelectedPlayerCount() {
-        for (let radio of playerCountRadios) if (radio.checked) return parseInt(radio.value, 10);
-        return 4;
-    }
-
     function getSelectedColorMode() {
         for (let radio of colorModeRadios) if (radio.checked) return radio.value;
         return 'normal';
-    }
-
-    function getSelectedGameMode() {
-        for (let radio of gameModeRadios) if (radio.checked) return radio.value;
-        return 'predefined';
     }
 
     function updateMinFieldSizeWarning() {
@@ -186,8 +308,17 @@
         canvas.height = CANVAS_H;
     }
 
-    function getPlayerName(player) {
-        return `Игрок ${player}`;
+    function updateStartCells() {
+        START_CELLS = {};
+        if (PLAYER_COUNT === 2) {
+            START_CELLS[1] = { x: 0, y: 0 };
+            START_CELLS[2] = { x: COLS - START_SIZE, y: ROWS - START_SIZE };
+        } else {
+            START_CELLS[1] = { x: 0, y: 0 };
+            START_CELLS[2] = { x: COLS - START_SIZE, y: 0 };
+            START_CELLS[3] = { x: 0, y: ROWS - START_SIZE };
+            START_CELLS[4] = { x: COLS - START_SIZE, y: ROWS - START_SIZE };
+        }
     }
 
     function formatTime(seconds) {
@@ -197,7 +328,7 @@
     }
 
     function updateTimerDisplay() { timerDisplay.textContent = formatTime(timerSeconds); }
-    function startTimer() { if (timerInterval) clearInterval(timerInterval); timerInterval = setInterval(() => { if (gameActive) { timerSeconds++; updateTimerDisplay(); } }, 1000); }
+    function startTimer() { if (timerInterval) clearInterval(timerInterval); timerInterval = setInterval(() => { if (gameActive) { timerSeconds++; updateTimerDisplay(); saveGameStateToLocalStorage(); } }, 1000); }
     function stopTimer() { if (timerInterval) { clearInterval(timerInterval); timerInterval = null; } }
     function resetTimer() { stopTimer(); timerSeconds = 0; updateTimerDisplay(); if (gameActive) startTimer(); }
 
@@ -225,37 +356,27 @@
             html += `<div class="player-score-card" style="border-left-color: ${color}">
                         <div class="player-color-badge" style="background: ${color}"></div>
                         <div class="player-score-info">
-                            <div class="player-name">${name}${isEliminated ? ' (выбыл)' : ''}</div>
+                            <div class="player-name">${name}${isEliminated ? (isRussian ? " (выбыл)" : " (eliminated)") : ''}</div>
                             <div class="player-score">${score}</div>
                         </div>
                     </div>`;
         }
-        html += `<div class="neutral-score-card"><div class="neutral-badge"></div><div class="neutral-info"><div class="neutral-name">Нейтральные</div><div class="neutral-score">${neutralCells}</div></div></div>`;
+        html += `<div class="neutral-score-card"><div class="neutral-badge"></div><div class="neutral-info"><div class="neutral-name">${isRussian ? "Нейтральные" : "Neutral"}</div><div class="neutral-score">${neutralCells}</div></div></div>`;
         sideScorePanel.innerHTML = html;
     }
 
     function updateUI() {
-        turnText.innerHTML = `${getPlayerName(currentPlayer)} (ход)`;
+        turnText.innerHTML = `${getPlayerName(currentPlayer)} (${isRussian ? "ход" : "turn"})`;
         turnText.style.backgroundColor = PLAYER_COLORS[currentPlayer];
         if(diceN && diceM && !waitingForRoll) diceDisplay.innerHTML = `🎲 ${diceN}  ·  ${diceM} 🎲`;
         else diceDisplay.innerHTML = `🎲  ?  ?  🎲`;
         updateSideScores();
         turnCountDisplay.innerText = turnCounter;
         updateControlUI();
+        saveGameStateToLocalStorage();
     }
 
-    function updateKillWarningForShape(shape) {
-        if (!shape) return;
-        const killed = coversStartCell(shape.x, shape.y, shape.w, shape.h, currentPlayer);
-        if (killed !== null && activePlayers.includes(killed)) {
-            currentMsg = `⚠️ Этим ходом вы убьёте ${getPlayerName(killed)}!`;
-        } else {
-            if (currentMsg.startsWith("⚠️")) {
-                currentMsg = `🎲 Выпало ${diceN} и ${diceM}. Перемещайте прямоугольник мышью, вращайте клавишей R. Кликните для размещения.`;
-            }
-        }
-    }
-
+    // ---------------------- Игровая логика --------------------------
     function areAdjacentByEdge(rect1, rect2) {
         const r1_left = rect1.x, r1_right = rect1.x + rect1.w - 1, r1_top = rect1.y, r1_bottom = rect1.y + rect1.h - 1;
         const r2_left = rect2.x, r2_right = rect2.x + rect2.w - 1, r2_top = rect2.y, r2_bottom = rect2.y + rect2.h - 1;
@@ -371,7 +492,6 @@
         eliminatedOrder.push(eliminated);
         activePlayers = activePlayers.filter(p => p !== eliminated);
         redistributeTerritory(eliminated, killer);
-        currentMsg = `💀 ${getPlayerName(eliminated)} выбыл! Его территория перераспределена.`;
         updateUI(); drawBoard();
         if (activePlayers.length === 1) endGame('elimination');
     }
@@ -383,6 +503,7 @@
         return true;
     }
 
+    // ---------------------- Модальное окно результатов --------------------------
     const resultModal = document.getElementById('gameResultModal');
     const closeResultModal = document.querySelector('.close-result-modal');
     const resultNewGameBtn = document.getElementById('resultNewGameBtn');
@@ -395,18 +516,18 @@
         winnerBlock.style.borderLeftColor = winnerColor;
         winnerBlock.innerHTML = `
             <div class="winner-name" style="color: ${winnerColor}">🏆 ${getPlayerName(winner.player)} 🏆</div>
-            <div class="winner-score">Счёт: ${finalScores[winner.player]}</div>
+            <div class="winner-score">${isRussian ? "Счёт:" : "Score:"} ${finalScores[winner.player]}</div>
         `;
 
         const rankingsList = document.getElementById('resultRankingsList');
-        rankingsList.innerHTML = '<div style="font-weight: bold; margin-bottom: 8px;">📊 Итоговые места:</div>';
+        rankingsList.innerHTML = `<div style="font-weight: bold; margin-bottom: 8px;">${isRussian ? "📊 Итоговые места:" : "📊 Final rankings:"}</div>`;
         for (let r of rankings) {
             const playerColor = PLAYER_COLORS[r.player];
             rankingsList.innerHTML += `
                 <div class="ranking-item">
-                    <span class="rank-place">${r.place} место</span>
+                    <span class="rank-place">${r.place} ${isRussian ? "место" : "place"}</span>
                     <span class="rank-name" style="color: ${playerColor}">${getPlayerName(r.player)}</span>
-                    <span class="rank-score">${finalScores[r.player]} очков</span>
+                    <span class="rank-score">${finalScores[r.player]} ${isRussian ? "очков" : "points"}</span>
                 </div>
             `;
         }
@@ -417,19 +538,18 @@
         const timeStr = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
         statsDiv.innerHTML = `
             <div class="stat-card">
-                <div class="stat-label">⏱️ Время игры</div>
+                <div class="stat-label">${isRussian ? "⏱️ Время игры" : "⏱️ Game time"}</div>
                 <div class="stat-value">${timeStr}</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">🎲 Всего ходов</div>
+                <div class="stat-label">${isRussian ? "🎲 Всего ходов" : "🎲 Total turns"}</div>
                 <div class="stat-value">${totalTurns}</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">⚪ Нейтральных клеток</div>
+                <div class="stat-label">${isRussian ? "⚪ Нейтральных клеток" : "⚪ Neutral cells"}</div>
                 <div class="stat-value">${neutralCount}</div>
             </div>
         `;
-
         resultModal.style.display = 'flex';
     }
 
@@ -485,7 +605,6 @@
             }
         }
         showGameResultsModal(rankings, reason, finalScores, totalTurns, gameTime, neutralCount);
-        currentMsg = "Игра окончена. Результаты в окне.";
         updateUI();
         drawBoard();
     }
@@ -493,26 +612,24 @@
     closeResultModal.addEventListener('click', closeResultModalFunc);
     resultCloseBtn.addEventListener('click', closeResultModalFunc);
     resultNewGameBtn.addEventListener('click', restartFromResultModal);
-    window.addEventListener('click', (e) => {
-        if (e.target === resultModal) closeResultModalFunc();
-    });
+    window.addEventListener('click', (e) => { if (e.target === resultModal) closeResultModalFunc(); });
 
     function tryMakeMove(x, y, w, h) {
-        if (!isValidSize(w, h, diceN, diceM)) { currentMsg = `❌ Ошибка: нужен прямоугольник ${diceN}×${diceM}`; updateUI(); return false; }
-        if(x < 0 || y < 0 || x+w > COLS || y+h > ROWS) { currentMsg = "❌ Прямоугольник выходит за границы поля"; updateUI(); return false; }
+        if (!isValidSize(w, h, diceN, diceM)) { updateUI(); return false; }
+        if(x < 0 || y < 0 || x+w > COLS || y+h > ROWS) { updateUI(); return false; }
         let success = false;
         if(isAreaFree(x, y, w, h)) {
-            if(isAdjacentToPlayer({ x, y, w, h, owner: null }, currentPlayer)) { rectangles.push({ owner: currentPlayer, x, y, w, h }); currentMsg = `✅ Расширение: занята область ${w}×${h}`; success = true; }
-            else { currentMsg = "❌ Расширение: прямоугольник не прилегает к вашей территории"; updateUI(); return false; }
+            if(isAdjacentToPlayer({ x, y, w, h, owner: null }, currentPlayer)) { rectangles.push({ owner: currentPlayer, x, y, w, h }); success = true; }
+            else { updateUI(); return false; }
         } else {
             const targetRect = getExactRectangle(x, y, w, h);
             if(targetRect && targetRect.owner !== currentPlayer) {
-                if(isAdjacentToPlayer(targetRect, currentPlayer)) { const oldOwner = targetRect.owner; targetRect.owner = currentPlayer; currentMsg = `⚔️ ЗАХВАТ! Отобран прямоугольник у ${getPlayerName(oldOwner)}`; success = true; }
-                else { currentMsg = "❌ Захват невозможен: вражеский прямоугольник не касается вашей территории"; updateUI(); return false; }
+                if(isAdjacentToPlayer(targetRect, currentPlayer)) { targetRect.owner = currentPlayer; success = true; }
+                else { updateUI(); return false; }
             } else if(targetRect && targetRect.owner === null) {
-                if(isAdjacentToPlayer(targetRect, currentPlayer)) { targetRect.owner = currentPlayer; currentMsg = `🏴‍☠️ ЗАХВАТ НЕЙТРАЛЬНОЙ ТЕРРИТОРИИ!`; success = true; }
-                else { currentMsg = "❌ Нейтральный прямоугольник не прилегает к вашей территории"; updateUI(); return false; }
-            } else { currentMsg = "❌ Невозможно: область перекрыта или не совпадает с существующим прямоугольником."; updateUI(); return false; }
+                if(isAdjacentToPlayer(targetRect, currentPlayer)) { targetRect.owner = currentPlayer; success = true; }
+                else { updateUI(); return false; }
+            } else { updateUI(); return false; }
         }
         if (success) {
             const eliminated = coversStartCell(x, y, w, h, currentPlayer);
@@ -542,12 +659,10 @@
         }
         currentPlayer = next;
         waitingForRoll = true;
-        selectionMode = false;
-        firstCorner = null;
         placementActive = false;
         diceN = 0; diceM = 0;
-        currentMsg = `${getPlayerName(currentPlayer)}, бросьте кубики`;
         updateUI(); drawBoard();
+        saveGameStateToLocalStorage();
         if ((botMode && botPlayers.includes(currentPlayer)) || simulationMode) {
             maybeBotTurn();
         }
@@ -573,46 +688,54 @@
         if (newX !== currentShape.x || newY !== currentShape.y) {
             currentShape.x = newX;
             currentShape.y = newY;
-            updateKillWarningForShape(currentShape);
-            scheduleRedraw();
+            drawBoard();
             return true;
         }
         return false;
     }
 
+    function clearPendingBot() {
+        if (pendingBotTimeout) {
+            clearTimeout(pendingBotTimeout);
+            pendingBotTimeout = null;
+        }
+        isBotThinking = false;
+        forceStopBot = false; // сбрасываем флаг после очистки
+    }
+
     async function botTurn() {
+        if (forceStopBot) return;
         if (!gameActive || isBotThinking) return;
         const isBot = (botMode && botPlayers.includes(currentPlayer)) || simulationMode;
         if (!isBot) return;
         isBotThinking = true;
         clearPendingBot();
         await new Promise(r => { pendingBotTimeout = setTimeout(r, 400); });
+        if (forceStopBot) { isBotThinking = false; return; }
         pendingBotTimeout = null;
         if (!gameActive) { isBotThinking = false; return; }
         if (waitingForRoll) {
             diceN = Math.floor(Math.random() * 6) + 1;
             diceM = Math.floor(Math.random() * 6) + 1;
             waitingForRoll = false;
-            selectionMode = false;
-            firstCorner = null;
             placementActive = false;
-            currentMsg = `🎲 ${getPlayerName(currentPlayer)} (бот) выбросил ${diceN} и ${diceM}.`;
             updateUI(); drawBoard();
             await new Promise(r => { pendingBotTimeout = setTimeout(r, 300); });
+            if (forceStopBot) { isBotThinking = false; return; }
             pendingBotTimeout = null;
             if (!gameActive) { isBotThinking = false; return; }
         }
         const move = getBestMove(currentPlayer, diceN, diceM);
         if (move && tryMakeMove(move.x, move.y, move.w, move.h)) {
-            currentMsg = `🤖 ${getPlayerName(currentPlayer)} (бот) сделал ход.`;
             updateUI(); drawBoard();
             await new Promise(r => { pendingBotTimeout = setTimeout(r, 500); });
+            if (forceStopBot) { isBotThinking = false; return; }
             pendingBotTimeout = null;
             if (!gameActive) { isBotThinking = false; return; }
             finishMove();
         } else {
-            currentMsg = `🤖 ${getPlayerName(currentPlayer)} не может сходить, пропускает.`;
             updateUI(); await new Promise(r => { pendingBotTimeout = setTimeout(r, 500); });
+            if (forceStopBot) { isBotThinking = false; return; }
             pendingBotTimeout = null;
             if (!gameActive) { isBotThinking = false; return; }
             skipTurn(true);
@@ -653,9 +776,9 @@
 
     function rollDice() {
         if(!gameActive) return;
-        if (simulationMode) { currentMsg = "Режим симуляции: все игроки — боты. Вы не можете бросать кубики."; updateUI(); return; }
-        if (botMode && botPlayers.includes(currentPlayer)) { currentMsg = "Сейчас ход бота..."; updateUI(); return; }
-        if(!waitingForRoll) { currentMsg = "Вы уже бросили!"; updateUI(); return; }
+        if (simulationMode) { updateUI(); return; }
+        if (botMode && botPlayers.includes(currentPlayer)) { updateUI(); return; }
+        if(!waitingForRoll) { updateUI(); return; }
         diceN = Math.floor(Math.random() * 6) + 1;
         diceM = Math.floor(Math.random() * 6) + 1;
         waitingForRoll = false;
@@ -664,40 +787,29 @@
         availableMoves = moves;
 
         if (moves.length === 0) {
-            currentMsg = "❌ Нет доступных ходов, ход пропущен автоматически.";
             updateUI();
             drawBoard();
             finishMove();
             return;
         }
 
-        if (gameMode === 'classic') {
-            selectionMode = true;
-            firstCorner = null;
-            placementActive = false;
-            currentMsg = `🎲 Выпало ${diceN} и ${diceM}. Кликните на поле, чтобы выбрать прямоугольник.`;
-        } else {
-            selectionMode = false;
-            firstCorner = null;
-            placementActive = true;
-            currentShape = { x: 0, y: 0, w: diceN, h: diceM };
-            let placed = false;
-            for (let y = 0; y <= ROWS - currentShape.h && !placed; y++) {
-                for (let x = 0; x <= COLS - currentShape.w; x++) {
-                    if (isAreaFree(x, y, currentShape.w, currentShape.h) && isAdjacentToPlayer({x,y,w:currentShape.w,h:currentShape.h,owner:null}, currentPlayer)) {
-                        currentShape.x = x;
-                        currentShape.y = y;
-                        placed = true;
-                        break;
-                    }
+        placementActive = true;
+        currentShape = { x: 0, y: 0, w: diceN, h: diceM };
+        let placed = false;
+        for (let y = 0; y <= ROWS - currentShape.h && !placed; y++) {
+            for (let x = 0; x <= COLS - currentShape.w; x++) {
+                if (isAreaFree(x, y, currentShape.w, currentShape.h) && isAdjacentToPlayer({x,y,w:currentShape.w,h:currentShape.h,owner:null}, currentPlayer)) {
+                    currentShape.x = x;
+                    currentShape.y = y;
+                    placed = true;
+                    break;
                 }
             }
-            if (!placed) {
-                currentShape.x = 0;
-                currentShape.y = 0;
-                constrainShapePosition();
-            }
-            currentMsg = `🎲 Выпало ${diceN} и ${diceM}. Перемещайте прямоугольник мышью, вращайте клавишей R. Кликните для размещения.`;
+        }
+        if (!placed) {
+            currentShape.x = 0;
+            currentShape.y = 0;
+            constrainShapePosition();
         }
         updateUI();
         drawBoard();
@@ -719,26 +831,39 @@
         currentShape.x = newX;
         currentShape.y = newY;
         constrainShapePosition();
-        updateKillWarningForShape(currentShape);
-        currentMsg = `Прямоугольник повёрнут: ${currentShape.w}×${currentShape.h}`;
-        updateUI();
-        scheduleRedraw();
+        drawBoard();
     }
 
     function skipTurn(fromBot = false) {
         if (!gameActive) return;
         if (!fromBot) {
-            if (simulationMode) { currentMsg = "Режим симуляции: вы не можете пропускать ход ботов."; updateUI(); return; }
-            if (botMode && botPlayers.includes(currentPlayer)) {
-                currentMsg = "Сейчас ход бота, вы не можете пропустить его ход.";
-                updateUI();
-                return;
-            }
+            if (simulationMode) return;
+            if (botMode && botPlayers.includes(currentPlayer)) return;
         }
-        currentMsg = "Ход пропущен";
         finishMove();
     }
 
+    // Функции с подтверждением
+    function newGameWithConfirm() {
+        if (!gameActive) {
+            newGame();
+            return;
+        }
+        const title = isRussian ? "Новая игра" : "New game";
+        const message = isRussian ? "Вы уверены, что хотите начать новую игру? Текущий прогресс будет потерян." : "Are you sure you want to start a new game? Current progress will be lost.";
+        showConfirmDialog(title, message, () => newGame(), 'newGame');
+    }
+
+    function skipTurnWithConfirm() {
+        if (!gameActive) return;
+        if (simulationMode) return;
+        if (botMode && botPlayers.includes(currentPlayer)) return;
+        const title = isRussian ? "Пропустить ход" : "Skip turn";
+        const message = isRussian ? "Вы уверены, что хотите пропустить ход?" : "Are you sure you want to skip your turn?";
+        showConfirmDialog(title, message, () => skipTurn(false), 'skipTurn');
+    }
+
+    // Отрисовка
     function drawBoard() {
         ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
         ctx.strokeStyle = GRID_COLOR;
@@ -759,7 +884,7 @@
         }
 
         const isHumanTurn = !simulationMode && gameActive && !(botMode && botPlayers.includes(currentPlayer));
-        if (isHumanTurn && !waitingForRoll && gameMode === 'predefined' && availableMoves.length > 0 && showAvailableHighlight) {
+        if (isHumanTurn && !waitingForRoll && availableMoves.length > 0 && showAvailableHighlight) {
             for (let move of availableMoves) {
                 const { x, y, w, h, isCaptureRect } = move;
                 if (!isCaptureRect) {
@@ -774,7 +899,7 @@
             }
         }
 
-        if (!simulationMode && gameActive && gameMode === 'predefined' && placementActive && !waitingForRoll && currentShape && currentShape.w > 0 && currentShape.h > 0) {
+        if (!simulationMode && gameActive && placementActive && !waitingForRoll && currentShape && currentShape.w > 0 && currentShape.h > 0) {
             const killed = coversStartCell(currentShape.x, currentShape.y, currentShape.w, currentShape.h, currentPlayer);
             let ghostColor = PREDEFINED_GHOST_STYLE;
             if (killed !== null && activePlayers.includes(killed)) {
@@ -793,82 +918,48 @@
             ctx.lineWidth = 2;
             ctx.strokeRect(currentShape.x*CELL_SIZE, currentShape.y*CELL_SIZE, currentShape.w*CELL_SIZE, currentShape.h*CELL_SIZE);
         }
-
-        if (!simulationMode && gameActive && gameMode === 'classic' && selectionMode && firstCorner && !placementActive) {
-            ctx.fillStyle = 'rgba(255,255,100,0.6)';
-            ctx.fillRect(firstCorner.x*CELL_SIZE, firstCorner.y*CELL_SIZE, CELL_SIZE, CELL_SIZE);
-            ctx.strokeStyle = 'gold';
-            ctx.strokeRect(firstCorner.x*CELL_SIZE, firstCorner.y*CELL_SIZE, CELL_SIZE, CELL_SIZE);
-        }
     }
 
     function onMouseMove(e) {
         if (simulationMode) return;
         const rectCanvas = canvas.getBoundingClientRect();
-        const scaleX = canvas.width/rectCanvas.width, scaleY = canvas.height/rectCanvas.height;
-        let cellX = Math.floor((e.clientX - rectCanvas.left)*scaleX/CELL_SIZE);
-        let cellY = Math.floor((e.clientY - rectCanvas.top)*scaleY/CELL_SIZE);
-        cellX = Math.min(Math.max(0,cellX), COLS-1);
-        cellY = Math.min(Math.max(0,cellY), ROWS-1);
+        const scaleX = canvas.width / rectCanvas.width, scaleY = canvas.height / rectCanvas.height;
+        let cellX = Math.floor((e.clientX - rectCanvas.left) * scaleX / CELL_SIZE);
+        let cellY = Math.floor((e.clientY - rectCanvas.top) * scaleY / CELL_SIZE);
+        cellX = Math.min(Math.max(0, cellX), COLS - 1);
+        cellY = Math.min(Math.max(0, cellY), ROWS - 1);
 
-        if (gameMode === 'classic') {
-            if (!selectionMode || firstCorner === null) { scheduleRedraw(); return; }
-            let left = Math.min(firstCorner.x, cellX), right = Math.max(firstCorner.x, cellX), top = Math.min(firstCorner.y, cellY), bottom = Math.max(firstCorner.y, cellY);
-            let width = right-left+1, height = bottom-top+1;
-            let isValid = isValidSize(width, height, diceN, diceM);
-            ctx.fillStyle = isValid ? GHOST_STYLE : 'rgba(255,80,80,0.3)';
-            ctx.fillRect(left*CELL_SIZE, top*CELL_SIZE, width*CELL_SIZE, height*CELL_SIZE);
-            ctx.strokeStyle = isValid ? '#ffff00' : '#ff0000';
-            ctx.strokeRect(left*CELL_SIZE, top*CELL_SIZE, width*CELL_SIZE, height*CELL_SIZE);
-        } else if (gameMode === 'predefined') {
-            if (!placementActive || waitingForRoll) return;
-            let newX = cellX;
-            let newY = cellY;
-            let maxX = COLS - currentShape.w;
-            let maxY = ROWS - currentShape.h;
-            newX = Math.min(Math.max(0, newX), maxX);
-            newY = Math.min(Math.max(0, newY), maxY);
-            if (currentShape.x !== newX || currentShape.y !== newY) {
-                currentShape.x = newX;
-                currentShape.y = newY;
-                updateKillWarningForShape(currentShape);
-                scheduleRedraw();
-            }
+        if (!placementActive || waitingForRoll) return;
+        let newX = cellX;
+        let newY = cellY;
+        let maxX = COLS - currentShape.w;
+        let maxY = ROWS - currentShape.h;
+        newX = Math.min(Math.max(0, newX), maxX);
+        newY = Math.min(Math.max(0, newY), maxY);
+        if (currentShape.x !== newX || currentShape.y !== newY) {
+            currentShape.x = newX;
+            currentShape.y = newY;
+            drawBoard();
         }
     }
 
     function handleCanvasClick(e) {
         if(!gameActive) return;
-        if (simulationMode) { currentMsg = "Режим симуляции: вы не можете взаимодействовать с полем."; updateUI(); return; }
-        if (botMode && botPlayers.includes(currentPlayer)) { currentMsg = "Ход бота, подождите..."; updateUI(); return; }
-        if(waitingForRoll) { currentMsg = "Сначала бросьте кубики!"; updateUI(); return; }
-
-        if (gameMode === 'classic') {
-            if(!selectionMode) return;
-            const rectCanvas = canvas.getBoundingClientRect();
-            const scaleX = canvas.width/rectCanvas.width, scaleY = canvas.height/rectCanvas.height;
-            let cellX = Math.floor((e.clientX - rectCanvas.left)*scaleX/CELL_SIZE), cellY = Math.floor((e.clientY - rectCanvas.top)*scaleY/CELL_SIZE);
-            cellX = Math.min(Math.max(0,cellX), COLS-1); cellY = Math.min(Math.max(0,cellY), ROWS-1);
-            if(firstCorner === null) { firstCorner = { x: cellX, y: cellY }; currentMsg = `Первый угол: (${cellX},${cellY}). Теперь выберите противоположный.`; updateUI(); drawBoard(); }
-            else {
-                let left = Math.min(firstCorner.x, cellX), right = Math.max(firstCorner.x, cellX), top = Math.min(firstCorner.y, cellY), bottom = Math.max(firstCorner.y, cellY);
-                let width = right-left+1, height = bottom-top+1;
-                if(tryMakeMove(left, top, width, height)) { drawBoard(); finishMove(); }
-                else { firstCorner = null; updateUI(); drawBoard(); }
-            }
-        } else if (gameMode === 'predefined') {
-            if (!placementActive) return;
-            if (tryMakeMove(currentShape.x, currentShape.y, currentShape.w, currentShape.h)) {
-                placementActive = false;
-                drawBoard();
-                finishMove();
-            } else {
-                updateUI();
-                drawBoard();
-            }
+        if (simulationMode) { updateUI(); return; }
+        if (botMode && botPlayers.includes(currentPlayer)) { updateUI(); return; }
+        if(waitingForRoll) { updateUI(); return; }
+        if (!placementActive) return;
+        if (tryMakeMove(currentShape.x, currentShape.y, currentShape.w, currentShape.h)) {
+            placementActive = false;
+            drawBoard();
+            finishMove();
+        } else {
+            updateUI();
+            drawBoard();
         }
     }
 
+    // ---------------------- Цветовые режимы --------------------------
     function setColorPaletteForMode(mode) {
         PLAYER_COLORS = { ...BASE_PLAYER_COLORS };
         if (mode === 'protanopia' || mode === 'deuteranopia') {
@@ -881,13 +972,14 @@
         document.body.style.filter = 'none';
     }
 
-    function applySettingsAndRestart() {
+    // ---------------------- Настройки --------------------------
+    function updateGlobalFromDOM() {
         let newCols = COLS, newRows = ROWS;
         const newStartSize = parseInt(startSizeSlider.value, 10);
         const newPlayerCount = getSelectedPlayerCount();
         const newSimulationMode = simulationToggle.checked;
         const minFieldDim = 2 * newStartSize + 6;
-        
+
         if (radioCustom.checked) {
             let colsVal = parseInt(customCols.value, 10);
             let rowsVal = parseInt(customRows.value, 10);
@@ -901,28 +993,21 @@
             newCols = Math.max(minFieldDim, 39);
             newRows = Math.max(minFieldDim, 28);
         }
-        
+
         const newBotMode = botsToggle.checked;
         COLS = newCols;
         ROWS = newRows;
         START_SIZE = newStartSize;
         PLAYER_COUNT = newPlayerCount;
         simulationMode = newSimulationMode;
-        gameMode = getSelectedGameMode();
-        const newHighlight = highlightToggle.checked;
-        showAvailableHighlight = newHighlight;
-        
-        updateCanvasSize();
-        updateStartCells();
-        
+        showAvailableHighlight = highlightToggle.checked;
+
         if (simulationMode) {
             botMode = true;
             if (PLAYER_COUNT === 2) {
                 botPlayers = [1,2];
-                botsStatusText.innerText = "(режим симуляции: оба игрока боты)";
             } else {
                 botPlayers = [1,2,3,4];
-                botsStatusText.innerText = "(режим симуляции: все игроки боты)";
             }
             botsToggle.disabled = true;
             botsToggle.parentElement.style.opacity = '0.5';
@@ -930,28 +1015,36 @@
             botMode = newBotMode;
             if (PLAYER_COUNT === 2) {
                 botPlayers = botMode ? [2] : [];
-                botsStatusText.innerText = botMode ? "(игрок 2 — бот)" : "(игроки оба живые)";
             } else {
                 botPlayers = botMode ? [2,3,4] : [];
-                botsStatusText.innerText = botMode ? "(игроки 2,3,4 — боты)" : "(все игроки люди)";
             }
             botsToggle.disabled = false;
             botsToggle.parentElement.style.opacity = '1';
         }
-        
+        updateBotStatusText();
+
         const colorMode = getSelectedColorMode();
         applyColorBlindMode(colorMode);
-        
+
+        updateCanvasSize();
+        updateStartCells();
+    }
+
+    function getSelectedPlayerCount() {
+        for (let radio of playerCountRadios) if (radio.checked) return parseInt(radio.value, 10);
+        return 4;
+    }
+
+    function applySettingsAndRestart() {
+        updateGlobalFromDOM();
         stopTimer();
         clearPendingBot();
         newGame();
+        saveGameStateToLocalStorage();
         settingsModal.style.display = "none";
     }
 
     function openModal() {
-        for (let radio of gameModeRadios) {
-            if (radio.value === gameMode) radio.checked = true;
-        }
         highlightToggle.checked = showAvailableHighlight;
         settingsModal.style.display = "flex";
         updateMinFieldSizeWarning();
@@ -969,8 +1062,11 @@
     customRows.addEventListener('input', updateMinFieldSizeWarning);
 
     function newGame() {
+        forceStopBot = true;
         clearPendingBot();
-        stopTimer(); timerSeconds = 0; updateTimerDisplay();
+        stopTimer();
+        timerSeconds = 0;
+        updateTimerDisplay();
         rectangles = [];
         const positions = PLAYER_COUNT === 2 ? [1,2] : [1,2,3,4];
         for (let p of positions) {
@@ -979,56 +1075,106 @@
         }
         currentPlayer = 1;
         waitingForRoll = true;
-        selectionMode = false;
-        firstCorner = null;
         placementActive = false;
-        diceN = 0; diceM = 0;
+        diceN = 0;
+        diceM = 0;
         turnCounter = 0;
         activePlayers = [...positions];
         eliminatedOrder = [];
         gameActive = true;
         availableMoves = [];
-        currentMsg = simulationMode ? "Режим симуляции: наблюдение за игрой ботов." : "Новая игра! Бросьте кубики.";
         rollBtn.disabled = false;
         skipBtn.disabled = false;
         updateUI();
         drawBoard();
         startTimer();
-        fieldSizeLabel.innerText = (COLS===39 && ROWS===28 && START_SIZE===2 && PLAYER_COUNT===4 && !simulationMode) ? "Стандартное поле (39×28)" : `Поле ${COLS}×${ROWS}, старт ${START_SIZE}, игроков ${PLAYER_COUNT}${simulationMode ? ' [СИМУЛЯЦИЯ]' : ''}`;
-        botsLabel.innerText = simulationMode ? "🎬 Режим симуляции (все боты)" : (botMode ? "🤖 Игра с ботами" : "👤 Игра без ботов");
         if (simulationMode || (botMode && botPlayers.includes(currentPlayer))) {
             maybeBotTurn();
         }
+        saveGameStateToLocalStorage();
     }
 
-    function openHelpModal() {
-        helpModal.style.display = 'flex';
-    }
-    function closeHelpModal() {
-        helpModal.style.display = 'none';
-    }
+    function openHelpModal() { helpModal.style.display = 'flex'; }
+    function closeHelpModal() { helpModal.style.display = 'none'; }
     if (helpButton) helpButton.addEventListener('click', openHelpModal);
     if (closeHelpSpan) closeHelpSpan.addEventListener('click', closeHelpModal);
     if (closeHelpBtn) closeHelpBtn.addEventListener('click', closeHelpModal);
-    window.addEventListener('click', (e) => {
-        if (e.target === helpModal) closeHelpModal();
-    });
+    window.addEventListener('click', (e) => { if (e.target === helpModal) closeHelpModal(); });
 
+    // ---------------------- Инициализация --------------------------
     function init() {
-        updateCanvasSize();
-        updateStartCells();
-        applyColorBlindMode('normal');
-        gameMode = 'predefined';
-        showAvailableHighlight = true;
-        newGame();
+        const loaded = loadGameStateFromLocalStorage();
+        if (!loaded) {
+            updateGlobalFromDOM();
+        } else {
+            updateGlobalFromDOM();
+        }
+
+        const wasSettingsOpenSaved = localStorage.getItem('wasSettingsOpen');
+        const wasHelpOpenSaved = localStorage.getItem('wasHelpOpen');
+        if (wasSettingsOpenSaved === 'true') {
+            setTimeout(() => { openModal(); }, 100);
+            localStorage.removeItem('wasSettingsOpen');
+        }
+        if (wasHelpOpenSaved === 'true') {
+            setTimeout(() => { openHelpModal(); }, 150);
+            localStorage.removeItem('wasHelpOpen');
+        }
+
+        // Восстановление окна подтверждения после смены языка
+        const wasConfirmOpen = localStorage.getItem('wasConfirmOpen') === 'true';
+        if (wasConfirmOpen) {
+            const actionType = localStorage.getItem('confirmActionType');
+            setTimeout(() => {
+                if (actionType === 'newGame') {
+                    newGameWithConfirm();
+                } else if (actionType === 'skipTurn') {
+                    skipTurnWithConfirm();
+                }
+            }, 300);
+            localStorage.removeItem('wasConfirmOpen');
+            localStorage.removeItem('confirmActionType');
+        }
+
         canvas.addEventListener('click', handleCanvasClick);
         canvas.addEventListener('mousemove', onMouseMove);
-        canvas.addEventListener('mouseleave', () => { scheduleRedraw(); });
+        canvas.addEventListener('mouseleave', () => { drawBoard(); });
         rollBtn.addEventListener('click', rollDice);
-        skipBtn.addEventListener('click', () => skipTurn(false));
-        resetBtnLeft.addEventListener('click', () => newGame());
+        resetBtnLeft.removeEventListener('click', newGame);
+        resetBtnLeft.addEventListener('click', newGameWithConfirm);
+        skipBtn.removeEventListener('click', skipTurn);
+        skipBtn.addEventListener('click', skipTurnWithConfirm);
+
         window.addEventListener('keydown', (e) => {
+            // Переключение языка работает даже при открытом подтверждении
+            if (e.code === 'KeyL') {
+                e.preventDefault();
+                switchLanguage();
+                return;
+            }
+
+            // Обработка модального окна подтверждения
+            if (confirmModal.style.display === 'flex') {
+                if (e.code === 'Enter') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (pendingConfirmAction) pendingConfirmAction();
+                    closeConfirmDialog();
+                } else if (e.code === 'Escape') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    closeConfirmDialog();
+                }
+                return;
+            }
+
             if (simulationMode) return;
+
+            if (e.code === 'KeyN') {
+                e.preventDefault();
+                newGameWithConfirm();
+                return;
+            }
 
             if (e.code === 'Enter' && gameActive) {
                 if (waitingForRoll && !(botMode && botPlayers.includes(currentPlayer))) {
@@ -1036,7 +1182,7 @@
                     e.preventDefault();
                     return;
                 }
-                if (gameMode === 'predefined' && placementActive && !waitingForRoll && !(botMode && botPlayers.includes(currentPlayer))) {
+                if (placementActive && !waitingForRoll && !(botMode && botPlayers.includes(currentPlayer))) {
                     e.preventDefault();
                     if (tryMakeMove(currentShape.x, currentShape.y, currentShape.w, currentShape.h)) {
                         placementActive = false;
@@ -1050,13 +1196,13 @@
                 }
             }
 
-            if (e.code === 'KeyR' && gameMode === 'predefined' && placementActive && !waitingForRoll && !(botMode && botPlayers.includes(currentPlayer)) && gameActive) {
+            if (e.code === 'KeyR' && placementActive && !waitingForRoll && !(botMode && botPlayers.includes(currentPlayer)) && gameActive) {
                 e.preventDefault();
                 rotateShape();
                 return;
             }
 
-            if (gameMode === 'predefined' && placementActive && !waitingForRoll && gameActive && !(botMode && botPlayers.includes(currentPlayer))) {
+            if (placementActive && !waitingForRoll && gameActive && !(botMode && botPlayers.includes(currentPlayer))) {
                 let dx = 0, dy = 0;
                 if (e.code === 'ArrowLeft' || e.code === 'KeyA') dx = -1;
                 else if (e.code === 'ArrowRight' || e.code === 'KeyD') dx = 1;
@@ -1069,9 +1215,10 @@
                 }
             }
 
-            if (e.code === 'KeyS' && gameActive && !(botMode && botPlayers.includes(currentPlayer)) && !(placementActive && !waitingForRoll && gameMode === 'predefined')) {
-                skipTurn(false);
+            // Пропуск хода — клавиша P
+            if (e.code === 'KeyP' && gameActive && !simulationMode && !(botMode && botPlayers.includes(currentPlayer))) {
                 e.preventDefault();
+                skipTurnWithConfirm();
                 return;
             }
 
@@ -1096,14 +1243,16 @@
                 }
                 return;
             }
-
-            if (e.code === 'KeyN') {
-                e.preventDefault();
-                newGame();
-                return;
-            }
         });
-        openHelpModal();
+
+        if (!loaded) {
+            newGame();
+        } else {
+            if (gameActive && !timerInterval) startTimer();
+            drawBoard();
+            updateUI();
+            if ((botMode && botPlayers.includes(currentPlayer)) || simulationMode) maybeBotTurn();
+        }
     }
     init();
 })();
