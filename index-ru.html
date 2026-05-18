@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Захват</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div class="game-wrapper">
+    <div class="game-container">
+        <div class="game-top-row">
+            <div class="top-left-buttons">
+                <div class="round-button" id="settingsIcon">⚙️</div>
+                <div class="round-button" id="helpButton">❓</div>
+                <div class="round-button" id="langButton">EN</div>
+            </div>
+            <div class="left-panel">
+                <div class="score-panel" id="sideScorePanel"></div>
+                <div class="turn-counter-box">Ход: <span id="turnCountDisplay">0</span></div>
+                <div class="timer-box">⏱️ Время: <span id="timerDisplay">00:00</span></div>
+                <button id="resetBtnLeft" class="reset-button">🔄 Новая игра</button>
+            </div>
+            <canvas id="gameCanvas" width="780" height="560" role="img" aria-label="Игровое поле"></canvas>
+        </div>
+        <div class="info-panel">
+            <div class="turn-indicator" id="turnText">Игрок 1 (ход)</div>
+            <div class="dice-area" id="diceDisplay">🎲  ?  ?  🎲</div>
+            <div class="controls">
+                <button id="rollBtn" aria-label="Бросить кубики">🎲 Бросить кубики</button>
+                <button id="skipBtn" aria-label="Пропустить ход">⏭ Пропустить ход</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно настроек -->
+<div id="settingsModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Настройки игры</h3>
+            <span class="close-modal">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div class="settings-grid">
+                <div class="settings-column">
+                    <div class="settings-group">
+                        <label>Количество игроков:</label>
+                        <div class="radio-group">
+                            <label class="radio-label"><input type="radio" name="playerCount" value="2"> 2 игрока</label>
+                            <label class="radio-label"><input type="radio" name="playerCount" value="4" checked> 4 игрока</label>
+                        </div>
+                    </div>
+                    <div class="settings-group">
+                        <label>Размер стартовых квадратов: <span id="startSizeValue">2</span></label>
+                        <input type="range" id="startSizeSlider" min="1" max="6" step="1" value="2">
+                        <div class="hint">(от 1 до 6, влияет на мин. размер поля)</div>
+                    </div>
+                    <div class="settings-group">
+                        <label>Размер поля:</label>
+                        <div class="radio-group">
+                            <label class="radio-label"><input type="radio" name="fieldSize" value="standard" checked> Стандартный (39×28)</label>
+                            <label class="radio-label"><input type="radio" name="fieldSize" value="custom"> Кастомный</label>
+                        </div>
+                        <div id="customSizeInputs" class="custom-size-inputs" style="display: none;">
+                            <input type="number" id="customCols" min="8" max="58" value="39" step="1"> ×
+                            <input type="number" id="customRows" min="8" max="31" value="28" step="1">
+                            <div id="sizeWarning" class="warning-message" style="display: none; color: #ffaa66; font-size: 0.8rem;">Минимальный размер поля: <span id="minFieldSizeSpan">0</span>×<span id="minFieldSizeSpan2">0</span></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="settings-column">
+                    <div class="settings-group">
+                        <label for="botsToggle">🤖 Режим ботов:</label>
+                        <label class="switch">
+                            <input type="checkbox" id="botsToggle" checked>
+                            <span class="slider round"></span>
+                        </label>
+                        <span id="botsStatusText">(игроки 2,3,4 — боты)</span>
+                    </div>
+                    <div class="settings-group">
+                        <label for="simulationToggle">🎬 Режим симуляции (все игроки — боты):</label>
+                        <label class="switch">
+                            <input type="checkbox" id="simulationToggle">
+                            <span class="slider round"></span>
+                        </label>
+                        <div class="hint">(включите для наблюдения за игрой ботов)</div>
+                    </div>
+                    <div class="settings-group">
+                        <label for="highlightToggle">🟢 Подсветка доступных ходов:</label>
+                        <label class="switch">
+                            <input type="checkbox" id="highlightToggle" checked>
+                            <span class="slider round"></span>
+                        </label>
+                        <div class="hint">(зелёные области, которые можно занять или захватить)</div>
+                    </div>
+                    <div class="settings-group">
+                        <label>Цветовой режим:</label>
+                        <div class="radio-group colorblind-group">
+                            <label class="radio-label"><input type="radio" name="colorMode" value="normal" checked> Обычный</label>
+                            <label class="radio-label"><input type="radio" name="colorMode" value="protanopia"> Протанопия</label>
+                            <label class="radio-label"><input type="radio" name="colorMode" value="deuteranopia"> Дейтеранопия</label>
+                            <label class="radio-label"><input type="radio" name="colorMode" value="tritanopia"> Тританопия</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button id="applySettingsBtn">Применить и перезапустить</button>
+            <button id="cancelSettingsBtn">Отмена</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно справочника -->
+<div id="helpModal" class="modal help-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>📖 Справочник игры</h3>
+            <span class="close-help-modal">&times;</span>
+        </div>
+        <div class="modal-body two-columns">
+            <div class="help-column">
+                <div class="help-section">
+                    <h4>🎮 Горячие клавиши</h4>
+                    <ul>
+                        <li><kbd>Enter</kbd> — бросить кубики / подтвердить размещение</li>
+                        <li><kbd>P</kbd> — пропустить ход</li>
+                        <li><kbd>R</kbd> — повернуть прямоугольник</li>
+                        <li><kbd>W</kbd> / <kbd>▲</kbd> — вверх</li>
+                        <li><kbd>S</kbd> / <kbd>▼</kbd> — вниз</li>
+                        <li><kbd>A</kbd> / <kbd>◀</kbd> — влево</li>
+                        <li><kbd>D</kbd> / <kbd>▶</kbd> — вправо</li>
+                        <li><kbd>Esc</kbd> — открыть/закрыть настройки</li>
+                        <li><kbd>Q</kbd> — открыть/закрыть справочник</li>
+                        <li><kbd>N</kbd> — новая игра</li>
+                        <li><kbd>L</kbd> — переключить язык (русский/английский)</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="help-column">
+                <div class="help-section">
+                    <h4>⚔️ Правила захвата</h4>
+                    <p>Размер прямоугольника <strong>строго по кубикам</strong>. Вы можете:</p>
+                    <ul>
+                        <li><span class="highlight-green">Занять пустую область</span> (прилегает к вашей территории).</li>
+                        <li><span class="highlight-orange">Захватить вражеский блок</span> целиком (если он касается вашей территории и имеет нужный размер).</li>
+                        <li><span class="highlight-gray">Захватить нейтральный блок</span> (серый, уже существующий).</li>
+                    </ul>
+                    <p>Накрытие стартовой клетки → выбывание врага, его земли переходят соседям.</p>
+                </div>
+                <div class="help-section">
+                    <h4>🏆 Условия победы</h4>
+                    <ul>
+                        <li>Захватить ≥ 2/3 поля</li>
+                        <li>Уничтожить всех соперников</li>
+                        <li>Поле полностью заполнено → побеждает игрок с наибольшей территорией</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button id="closeHelpBtn">Закрыть</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно результатов -->
+<div id="gameResultModal" class="modal result-modal">
+    <div class="modal-content result-modal-content">
+        <div class="modal-header">
+            <h3>🏁 Игра окончена 🏁</h3>
+            <span class="close-result-modal">&times;</span>
+        </div>
+        <div class="modal-body result-body">
+            <div id="resultWinnerBlock" class="winner-block"></div>
+            <div id="resultRankingsList" class="rankings-list"></div>
+            <div id="resultStats" class="result-stats"></div>
+        </div>
+        <div class="modal-footer">
+            <button id="resultNewGameBtn">🔄 Новая игра</button>
+            <button id="resultCloseBtn">Закрыть</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно подтверждения -->
+<div id="confirmModal" class="modal confirm-modal">
+    <div class="modal-content confirm-content">
+        <div class="modal-header">
+            <h3 id="confirmTitle">Подтверждение действия</h3>
+            <span class="close-confirm-modal">&times;</span>
+        </div>
+        <div class="modal-body confirm-body">
+            <p id="confirmMessage">Вы уверены?</p>
+        </div>
+        <div class="modal-footer confirm-footer">
+            <button id="confirmYesBtn">✓ Да (Enter)</button>
+            <button id="confirmNoBtn">✗ Нет (Esc)</button>
+        </div>
+    </div>
+</div>
+
+<script src="js/scripts.js"></script>
+</body>
+</html>
