@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Capture [Захват]</title>
+    <title>Capture</title>
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -13,173 +13,164 @@
             <div class="top-left-buttons">
                 <div class="round-button" id="settingsIcon">⚙️</div>
                 <div class="round-button" id="helpButton">❓</div>
+                <div class="round-button" id="langButton">RU</div>
             </div>
             <div class="left-panel">
                 <div class="score-panel" id="sideScorePanel"></div>
-                <div class="turn-counter-box">Ход: <span id="turnCountDisplay">0</span></div>
-                <div class="timer-box">⏱️ Время: <span id="timerDisplay">00:00</span></div>
-                <button id="resetBtnLeft" class="reset-button">🔄 Новая игра</button>
+                <div class="turn-counter-box">Turn: <span id="turnCountDisplay">0</span></div>
+                <div class="timer-box">⏱️ Time: <span id="timerDisplay">00:00</span></div>
+                <button id="resetBtnLeft" class="reset-button">🔄 New game</button>
             </div>
-            <canvas id="gameCanvas" width="780" height="560" role="img" aria-label="Игровое поле"></canvas>
-        </div>
-        <div class="canvas-info">
-            <div class="field-size-label" id="fieldSizeLabel">Стандартное поле (39×28)</div>
-            <div class="bots-label" id="botsLabel">🤖 Игра с ботами</div>
+            <canvas id="gameCanvas" width="780" height="560" role="img" aria-label="Game board"></canvas>
         </div>
         <div class="info-panel">
-            <div class="turn-indicator" id="turnText">Игрок 1 (ход)</div>
+            <div class="turn-indicator" id="turnText">Player 1 (turn)</div>
             <div class="dice-area" id="diceDisplay">🎲  ?  ?  🎲</div>
             <div class="controls">
-                <button id="rollBtn" aria-label="Бросить кубики">🎲 Бросить кубики</button>
-                <button id="skipBtn" aria-label="Пропустить ход">⏭ Пропустить ход</button>
+                <button id="rollBtn" aria-label="Roll dice">🎲 Roll dice</button>
+                <button id="skipBtn" aria-label="Skip turn">⏭ Skip turn</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Модальное окно настроек -->
+<!-- Settings Modal -->
 <div id="settingsModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
-            <h3>Настройки игры</h3>
+            <h3>Game settings</h3>
             <span class="close-modal">&times;</span>
         </div>
         <div class="modal-body">
             <div class="settings-grid">
                 <div class="settings-column">
                     <div class="settings-group">
-                        <label>Количество игроков:</label>
+                        <label>Number of players:</label>
                         <div class="radio-group">
-                            <label class="radio-label"><input type="radio" name="playerCount" value="2"> 2 игрока</label>
-                            <label class="radio-label"><input type="radio" name="playerCount" value="4" checked> 4 игрока</label>
+                            <label class="radio-label"><input type="radio" name="playerCount" value="2"> 2 players</label>
+                            <label class="radio-label"><input type="radio" name="playerCount" value="4" checked> 4 players</label>
                         </div>
                     </div>
                     <div class="settings-group">
-                        <label>Размер стартовых квадратов: <span id="startSizeValue">2</span></label>
+                        <label>Start square size: <span id="startSizeValue">2</span></label>
                         <input type="range" id="startSizeSlider" min="1" max="6" step="1" value="2">
-                        <div class="hint">(от 1 до 6, влияет на мин. размер поля)</div>
+                        <div class="hint">(1 to 6, affects min field size)</div>
                     </div>
                     <div class="settings-group">
-                        <label>Размер поля:</label>
+                        <label>Field size:</label>
                         <div class="radio-group">
-                            <label class="radio-label"><input type="radio" name="fieldSize" value="standard" checked> Стандартный (39×28)</label>
-                            <label class="radio-label"><input type="radio" name="fieldSize" value="custom"> Кастомный</label>
+                            <label class="radio-label"><input type="radio" name="fieldSize" value="standard" checked> Standard (39×28)</label>
+                            <label class="radio-label"><input type="radio" name="fieldSize" value="custom"> Custom</label>
                         </div>
                         <div id="customSizeInputs" class="custom-size-inputs" style="display: none;">
                             <input type="number" id="customCols" min="8" max="58" value="39" step="1"> ×
                             <input type="number" id="customRows" min="8" max="31" value="28" step="1">
-                            <div id="sizeWarning" class="warning-message" style="display: none; color: #ffaa66; font-size: 0.8rem;">Минимальный размер поля: <span id="minFieldSizeSpan">0</span>×<span id="minFieldSizeSpan2">0</span></div>
-                        </div>
-                    </div>
-                    <div class="settings-group">
-                        <label>Отрисовка хода:</label>
-                        <div class="radio-group">
-                            <label class="radio-label"><input type="radio" name="gameMode" value="classic"> Выделение углов</label>
-                            <label class="radio-label"><input type="radio" name="gameMode" value="predefined" checked> Готовый прямоугольник</label>
+                            <div id="sizeWarning" class="warning-message" style="display: none; color: #ffaa66; font-size: 0.8rem;">Minimum field size: <span id="minFieldSizeSpan">0</span>×<span id="minFieldSizeSpan2">0</span></div>
                         </div>
                     </div>
                 </div>
                 <div class="settings-column">
                     <div class="settings-group">
-                        <label for="botsToggle">🤖 Режим ботов:</label>
+                        <label for="botsToggle">🤖 Bot mode:</label>
                         <label class="switch">
                             <input type="checkbox" id="botsToggle" checked>
                             <span class="slider round"></span>
                         </label>
-                        <span id="botsStatusText">(игроки 2,3,4 — боты)</span>
+                        <span id="botsStatusText">(players 2,3,4 are bots)</span>
                     </div>
                     <div class="settings-group">
-                        <label for="simulationToggle">🎬 Режим симуляции (все игроки — боты):</label>
+                        <label for="simulationToggle">🎬 Simulation mode (all bots):</label>
                         <label class="switch">
                             <input type="checkbox" id="simulationToggle">
                             <span class="slider round"></span>
                         </label>
-                        <div class="hint">(включите для наблюдения за игрой ботов)</div>
+                        <div class="hint">(enable to watch bots play)</div>
                     </div>
                     <div class="settings-group">
-                        <label for="highlightToggle">🟢 Подсветка доступных ходов:</label>
+                        <label for="highlightToggle">🟢 Highlight available moves:</label>
                         <label class="switch">
                             <input type="checkbox" id="highlightToggle" checked>
                             <span class="slider round"></span>
                         </label>
-                        <div class="hint">(зелёные области, которые можно занять или захватить)</div>
+                        <div class="hint">(green areas you can occupy or capture)</div>
                     </div>
                     <div class="settings-group">
-                        <label>Цветовой режим:</label>
+                        <label>Colorblind mode:</label>
                         <div class="radio-group colorblind-group">
-                            <label class="radio-label"><input type="radio" name="colorMode" value="normal" checked> Обычный</label>
-                            <label class="radio-label"><input type="radio" name="colorMode" value="protanopia"> Протанопия</label>
-                            <label class="radio-label"><input type="radio" name="colorMode" value="deuteranopia"> Дейтеранопия</label>
-                            <label class="radio-label"><input type="radio" name="colorMode" value="tritanopia"> Тританопия</label>
+                            <label class="radio-label"><input type="radio" name="colorMode" value="normal" checked> Normal</label>
+                            <label class="radio-label"><input type="radio" name="colorMode" value="protanopia"> Protanopia</label>
+                            <label class="radio-label"><input type="radio" name="colorMode" value="deuteranopia"> Deuteranopia</label>
+                            <label class="radio-label"><input type="radio" name="colorMode" value="tritanopia"> Tritanopia</label>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
         <div class="modal-footer">
-            <button id="applySettingsBtn">Применить и перезапустить</button>
-            <button id="cancelSettingsBtn">Отмена</button>
+            <button id="applySettingsBtn">Apply and restart</button>
+            <button id="cancelSettingsBtn">Cancel</button>
         </div>
     </div>
 </div>
 
-<!-- Модальное окно справочника -->
+<!-- Help Modal -->
 <div id="helpModal" class="modal help-modal">
     <div class="modal-content">
         <div class="modal-header">
-            <h3>📖 Справочник игры</h3>
+            <h3>📖 Game manual</h3>
             <span class="close-help-modal">&times;</span>
         </div>
         <div class="modal-body two-columns">
             <div class="help-column">
                 <div class="help-section">
-                    <h4>🎮 Горячие клавиши</h4>
+                    <h4>🎮 Hotkeys</h4>
                     <ul>
-                        <li><kbd>Enter</kbd> — бросить кубики / подтвердить размещение</li>
-                        <li><kbd>S</kbd> — пропустить ход</li>
-                        <li><kbd>R</kbd> — повернуть прямоугольник</li>
-                        <li><kbd>W</kbd> / <kbd>▲</kbd> — вверх</li>
-                        <li><kbd>S</kbd> / <kbd>▼</kbd> — вниз</li>
-                        <li><kbd>A</kbd> / <kbd>◀</kbd> — влево</li>
-                        <li><kbd>D</kbd> / <kbd>▶</kbd> — вправо</li>
-                        <li><kbd>Esc</kbd> — открыть/закрыть настройки</li>
-                        <li><kbd>Q</kbd> — открыть/закрыть справочник</li>
-                        <li><kbd>N</kbd> — новая игра</li>
+                        <li><kbd>Enter</kbd> — roll dice / confirm placement</li>
+                        <li><kbd>P</kbd> — skip turn</li>
+                        <li><kbd>R</kbd> — rotate rectangle</li>
+                        <li><kbd>W</kbd> / <kbd>▲</kbd> — up</li>
+                        <li><kbd>S</kbd> / <kbd>▼</kbd> — down</li>
+                        <li><kbd>A</kbd> / <kbd>◀</kbd> — left</li>
+                        <li><kbd>D</kbd> / <kbd>▶</kbd> — right</li>
+                        <li><kbd>Esc</kbd> — open/close settings</li>
+                        <li><kbd>Q</kbd> — open/close manual</li>
+                        <li><kbd>N</kbd> — new game</li>
+                        <li><kbd>L</kbd> — switch language (English/Russian)</li>
                     </ul>
                 </div>
             </div>
             <div class="help-column">
                 <div class="help-section">
-                    <h4>⚔️ Правила захвата</h4>
-                    <p>Размер прямоугольника <strong>строго по кубикам</strong>. Вы можете:</p>
+                    <h4>⚔️ Capture rules</h4>
+                    <p>Rectangle size <strong>exactly as dice</strong>. You can:</p>
                     <ul>
-                        <li><span class="highlight-green">Занять пустую область</span> (прилегает к вашей территории).</li>
-                        <li><span class="highlight-orange">Захватить вражеский блок</span> целиком (если он касается вашей территории и имеет нужный размер).</li>
-                        <li><span class="highlight-gray">Захватить нейтральный блок</span> (серый, уже существующий).</li>
+                        <li><span class="highlight-green">Occupy empty area</span> (adjacent to your territory).</li>
+                        <li><span class="highlight-orange">Capture enemy block</span> entirely (if adjacent and correct size).</li>
+                        <li><span class="highlight-gray">Capture neutral block</span> (gray existing).</li>
                     </ul>
-                    <p>Накрытие стартовой клетки → выбывание врага, его земли переходят соседям.</p>
+                    <p>Covering an opponent's starting cell → opponent eliminated, their land goes to neighbors.</p>
                 </div>
                 <div class="help-section">
-                    <h4>🏆 Условия победы</h4>
+                    <h4>🏆 Victory conditions</h4>
                     <ul>
-                        <li>Захватить ≥ 2/3 поля</li>
-                        <li>Уничтожить всех соперников</li>
-                        <li>Поле полностью заполнено → побеждает игрок с наибольшей территорией</li>
+                        <li>Control ≥ 2/3 of the board</li>
+                        <li>Eliminate all opponents</li>
+                        <li>Board full → player with most territory wins</li>
                     </ul>
                 </div>
             </div>
         </div>
         <div class="modal-footer">
-            <button id="closeHelpBtn">Закрыть</button>
+            <button id="closeHelpBtn">Close</button>
         </div>
     </div>
 </div>
 
-<!-- Модальное окно результатов -->
+<!-- Game result modal -->
 <div id="gameResultModal" class="modal result-modal">
     <div class="modal-content result-modal-content">
         <div class="modal-header">
-            <h3>🏁 Игра окончена 🏁</h3>
+            <h3>🏁 Game over 🏁</h3>
             <span class="close-result-modal">&times;</span>
         </div>
         <div class="modal-body result-body">
@@ -188,8 +179,25 @@
             <div id="resultStats" class="result-stats"></div>
         </div>
         <div class="modal-footer">
-            <button id="resultNewGameBtn">🔄 Новая игра</button>
-            <button id="resultCloseBtn">Закрыть</button>
+            <button id="resultNewGameBtn">🔄 New game</button>
+            <button id="resultCloseBtn">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm Dialog Modal -->
+<div id="confirmModal" class="modal confirm-modal">
+    <div class="modal-content confirm-content">
+        <div class="modal-header">
+            <h3 id="confirmTitle">Confirm action</h3>
+            <span class="close-confirm-modal">&times;</span>
+        </div>
+        <div class="modal-body confirm-body">
+            <p id="confirmMessage">Are you sure?</p>
+        </div>
+        <div class="modal-footer confirm-footer">
+            <button id="confirmYesBtn">✓ Yes (Enter)</button>
+            <button id="confirmNoBtn">✗ No (Esc)</button>
         </div>
     </div>
 </div>
