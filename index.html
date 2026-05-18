@@ -1,14 +1,43 @@
+<!-- index.html (английская версия) -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Capture</title>
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
 <div class="game-wrapper">
     <div class="game-container">
+        <!-- Кнопка-гамбургер (только на мобильных) -->
+        <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menu">☰</button>
+
+        <!-- Выдвижная панель (мобильная) -->
+        <div id="mobileDrawer" class="mobile-drawer">
+            <div class="drawer-header">
+                <h3>Game info</h3>
+                <button class="drawer-close" id="drawerCloseBtn">✕</button>
+            </div>
+            <div class="drawer-content">
+                <div class="drawer-score-panel" id="mobileScorePanel"></div>
+                <div class="drawer-turn-info">
+                    <div>Turn: <span id="mobileTurnText">Player 1</span></div>
+                    <div>Turn #: <span id="mobileTurnCount">0</span></div>
+                    <div>⏱️ <span id="mobileTimerDisplay">00:00</span></div>
+                </div>
+                <div class="drawer-buttons">
+                    <button id="mobileRollBtn" class="mobile-roll-btn">🎲 Roll dice</button>
+                    <button id="mobileSkipBtn" class="mobile-skip-btn">⏭ Skip turn</button>
+                    <button id="mobileNewGameBtn" class="mobile-newgame-btn">🔄 New game</button>
+                    <button id="mobileSettingsBtn" class="mobile-settings-btn">⚙️ Settings</button>
+                    <button id="mobileHelpBtn" class="mobile-help-btn">❓ Help</button>
+                </div>
+            </div>
+        </div>
+        <div id="drawerOverlay" class="drawer-overlay"></div>
+
+        <!-- Старый интерфейс (десктоп) -->
         <div class="game-top-row">
             <div class="top-left-buttons">
                 <div class="round-button" id="settingsIcon">⚙️</div>
@@ -34,7 +63,7 @@
     </div>
 </div>
 
-<!-- Settings Modal -->
+<!-- Модальные окна (настройки, справка, результат, подтверждение) -->
 <div id="settingsModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
@@ -65,7 +94,7 @@
                         <div id="customSizeInputs" class="custom-size-inputs" style="display: none;">
                             <input type="number" id="customCols" min="8" max="58" value="39" step="1"> ×
                             <input type="number" id="customRows" min="8" max="31" value="28" step="1">
-                            <div id="sizeWarning" class="warning-message" style="display: none; color: #ffaa66; font-size: 0.8rem;">Minimum field size: <span id="minFieldSizeSpan">0</span>×<span id="minFieldSizeSpan2">0</span></div>
+                            <div id="sizeWarning" class="warning-message" style="display: none;">Minimum field size: <span id="minFieldSizeSpan">0</span>×<span id="minFieldSizeSpan2">0</span></div>
                         </div>
                     </div>
                 </div>
@@ -113,7 +142,6 @@
     </div>
 </div>
 
-<!-- Help Modal -->
 <div id="helpModal" class="modal help-modal">
     <div class="modal-content">
         <div class="modal-header">
@@ -121,21 +149,29 @@
             <span class="close-help-modal">&times;</span>
         </div>
         <div class="modal-body two-columns">
-            <div class="help-column">
+            <div class="help-column desktop-help">
                 <div class="help-section">
-                    <h4>🎮 Hotkeys</h4>
+                    <h4>🎮 Hotkeys (desktop)</h4>
                     <ul>
-                        <li><kbd>Enter</kbd> — roll dice / confirm placement</li>
+                        <li><kbd>Enter</kbd> — roll / confirm placement</li>
                         <li><kbd>P</kbd> — skip turn</li>
                         <li><kbd>R</kbd> — rotate rectangle</li>
-                        <li><kbd>W</kbd> / <kbd>▲</kbd> — up</li>
-                        <li><kbd>S</kbd> / <kbd>▼</kbd> — down</li>
-                        <li><kbd>A</kbd> / <kbd>◀</kbd> — left</li>
-                        <li><kbd>D</kbd> / <kbd>▶</kbd> — right</li>
-                        <li><kbd>Esc</kbd> — open/close settings</li>
-                        <li><kbd>Q</kbd> — open/close manual</li>
+                        <li><kbd>W/A/S/D</kbd> or arrows — move</li>
+                        <li><kbd>Esc</kbd> — settings</li>
+                        <li><kbd>Q</kbd> — manual</li>
                         <li><kbd>N</kbd> — new game</li>
-                        <li><kbd>L</kbd> — switch language (English/Russian)</li>
+                        <li><kbd>L</kbd> — switch language</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="help-column mobile-help">
+                <div class="help-section">
+                    <h4>📱 Touch controls</h4>
+                    <ul>
+                        <li>👆 <strong>Tap on board</strong> — roll dice</li>
+                        <li>🖐️ <strong>Drag rectangle</strong> — move shape</li>
+                        <li>👆 <strong>Tap (no drag)</strong> — place shape</li>
+                        <li>📋 <strong>Menu ☰</strong> — scores, turn, timer, actions</li>
                     </ul>
                 </div>
             </div>
@@ -166,7 +202,6 @@
     </div>
 </div>
 
-<!-- Game result modal -->
 <div id="gameResultModal" class="modal result-modal">
     <div class="modal-content result-modal-content">
         <div class="modal-header">
@@ -185,7 +220,6 @@
     </div>
 </div>
 
-<!-- Confirm Dialog Modal -->
 <div id="confirmModal" class="modal confirm-modal">
     <div class="modal-content confirm-content">
         <div class="modal-header">
