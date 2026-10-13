@@ -355,6 +355,9 @@
     function updateSideScores() {
         const scores = computeScores();
         const neutralCells = getNeutralCellCount();
+        const totalCells = COLS * ROWS;
+        const percentOf = (cells) => totalCells > 0 ? ((cells / totalCells) * 100).toFixed(1) : '0.0';
+    
         let html = '';
         const playersToShow = PLAYER_COUNT === 2 ? [1,2] : [1,2,3,4];
         for(let p of playersToShow) {
@@ -366,21 +369,22 @@
                         <div class="player-color-badge" style="background: ${color}"></div>
                         <div class="player-score-info">
                             <div class="player-name">${name}${isEliminated ? (isRussian ? " (выбыл)" : " (eliminated)") : ''}</div>
-                            <div class="player-score">${score}</div>
+                            <div class="player-score">${score} ${percentOf(score)}%</div>
                         </div>
                     </div>`;
         }
-        html += `<div class="neutral-score-card"><div class="neutral-badge" style="background:#aaaaaa;"></div><div class="neutral-info"><div class="neutral-name">${isRussian ? "Нейтральные" : "Neutral"}</div><div class="neutral-score">${neutralCells}</div></div></div>`;
+        html += `<div class="neutral-score-card"><div class="neutral-badge" style="background:#aaaaaa;"></div><div class="neutral-info"><div class="neutral-name">${isRussian ? "Нейтральные" : "Neutral"}</div><div class="neutral-score">${neutralCells} ${percentOf(neutralCells)}%</div></div></div>`;
         if(sideScorePanel) sideScorePanel.innerHTML = html;
+    
         if(mobileScorePanel) {
             let mobileHtml = '';
             for(let p of playersToShow) {
                 const color = PLAYER_COLORS[p];
                 const name = getPlayerName(p);
                 const score = scores[p];
-                mobileHtml += `<div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;"><div style="width:20px; height:20px; background:${color}; border-radius:50%;"></div><div style="flex:1;">${name}</div><div style="font-weight:bold;">${score}</div></div>`;
+                mobileHtml += `<div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;"><div style="width:20px; height:20px; background:${color}; border-radius:50%;"></div><div style="flex:1;">${name}</div><div style="font-weight:bold;">${score} ${percentOf(score)}%</div></div>`;
             }
-            mobileHtml += `<div style="display:flex; align-items:center; gap:10px;"><div style="width:20px; height:20px; background:#aaaaaa; border-radius:50%;"></div><div style="flex:1;">${isRussian ? "Нейтральные" : "Neutral"}</div><div style="font-weight:bold;">${neutralCells}</div></div>`;
+            mobileHtml += `<div style="display:flex; align-items:center; gap:10px;"><div style="width:20px; height:20px; background:#aaaaaa; border-radius:50%;"></div><div style="flex:1;">${isRussian ? "Нейтральные" : "Neutral"}</div><div style="font-weight:bold;">${neutralCells} ${percentOf(neutralCells)}%</div></div>`;
             mobileScorePanel.innerHTML = mobileHtml;
         }
     }
