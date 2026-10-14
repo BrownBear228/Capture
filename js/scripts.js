@@ -45,11 +45,9 @@
     let START_CELLS = {};
     let redrawScheduled = false;
 
-    // Глобальное поколение игры — при newGame() увеличивается
     let gameGeneration = 0;
-    let currentGameGeneration = 0; // копия для проверки в асинхронных функциях
+    let currentGameGeneration = 0;
 
-    // Мобильные флаги
     let touchMoved = false;
     let touchStartX = 0, touchStartY = 0;
     let longPressTimer = null;
@@ -71,6 +69,7 @@
     function getPlayerName(player) {
         return `${isRussian ? "Игрок" : "Player"} ${player}`;
     }
+    function tt(ru, en) { return isRussian ? ru : en; }
 
     // ---------------------- DOM элементы --------------------------
     const canvas = document.getElementById('gameCanvas');
@@ -92,6 +91,7 @@
     const mobileSkipBtn = document.getElementById('mobileSkipBtn');
     const mobileNewGameBtn = document.getElementById('mobileNewGameBtn');
     const mobileSettingsBtn = document.getElementById('mobileSettingsBtn');
+    const mobileProgressBtn = document.getElementById('mobileProgressBtn');
     const mobileHelpBtn = document.getElementById('mobileHelpBtn');
     const mobileLangBtn = document.getElementById('mobileLangBtn');
     const mobileScorePanel = document.getElementById('mobileScorePanel');
@@ -136,8 +136,588 @@
     const resultNewGameBtn = document.getElementById('resultNewGameBtn');
     const resultCloseBtn = document.getElementById('resultCloseBtn');
 
+    // Progress modal
+    const progressButton = document.getElementById('progressButton');
+    const progressModal = document.getElementById('progressModal');
+    const closeProgressModalSpan = document.querySelector('.close-progress-modal');
+    const progressBody = document.getElementById('progressBody');
+    const progressTabs = document.querySelectorAll('.progress-tab');
+
     let pendingConfirmAction = null;
     let pendingConfirmActionType = null;
+
+    // ========================================================================
+    // ====================== ПРОГРЕСС: СТАТИСТИКА И ДОСТИЖЕНИЯ ===============
+    // ========================================================================
+    const STATS_KEY = 'capture_player_stats_v1';
+
+    function createDefaultStats() {
+        return {
+            gamesPlayed: 0,
+            wins: 0,
+            losses: 0,
+            gamesByPlayerCount: { 2: 0, 4: 0 },
+            winsByPlayerCount: { 2: 0, 4: 0 },
+            currentWinStreak: 0,
+            bestWinStreak: 0,
+            currentLossStreak: 0,
+            totalTimeSeconds: 0,
+            totalTurns: 0,
+            totalCellsCaptured: 0,
+            neutralCellsCaptured: 0,
+            enemyCellsCaptured: 0,
+            biggestCapture: 0,
+            biggestTerritoryPercent: 0,
+            totalRolls: 0,
+            doublesRolled: 0,
+            deadRolls: 0,
+            sumDistribution: [0,0,0,0,0,0,0,0,0,0,0,0,0],
+            maxConsecutiveDeadRolls: 0,
+            maxConsecutiveDoubles: 0,
+            eliminatedOpponents: 0,
+            timesEliminated: 0,
+            eliminationsByMe: { 1:0, 2:0, 3:0, 4:0 },
+            eliminationsOfMe: { 1:0, 2:0, 3:0, 4:0 },
+            winsByDominance: 0,
+            winsByElimination: 0,
+            winsByFull: 0,
+            simulationsWatched: 0,
+            fieldSizesPlayed: [],
+            customFieldGames: 0,
+            bigStartWins: 0,
+            colorblindGames: 0,
+            achievements: {}
+        };
+    }
+
+    let playerStats = createDefaultStats();
+
+    // Промежуточные счётчики для текущей партии
+    let currentGameTracking = {
+        eliminationsByMe: 0,
+        startPlayerCount: 4,
+        startStartSize: 2,
+        fieldSizeKey: '39x28',
+        colorMode: 'normal',
+        countedAsFinished: false
+    };
+
+    let _consecutiveDeadRolls = 0;
+    let _consecutiveDoubles = 0;
+
+    function loadStats() {
+        try {
+            const raw = localStorage.getItem(STATS_KEY);
+            if (!raw) return;
+            const parsed = JSON.parse(raw);
+            playerStats = Object.assign(createDefaultStats(), parsed);
+            playerStats.gamesByPlayerCount = Object.assign({ 2: 0, 4: 0 }, parsed.gamesByPlayerCount || {});
+            playerStats.winsByPlayerCount = Object.assign({ 2: 0, 4: 0 }, parsed.winsByPlayerCount || {});
+            playerStats.eliminationsByMe = Object.assign({ 1:0,2:0,3:0,4:0 }, parsed.eliminationsByMe || {});
+            playerStats.eliminationsOfMe = Object.assign({ 1:0,2:0,3:0,4:0 }, parsed.eliminationsOfMe || {});
+            playerStats.achievements = parsed.achievements || {};
+            if (!Array.isArray(playerStats.sumDistribution) || playerStats.sumDistribution.length !== 13) {
+                playerStats.sumDistribution = [0,0,0,0,0,0,0,0,0,0,0,0,0];
+            }
+            if (!Array.isArray(playerStats.fieldSizesPlayed)) {
+                playerStats.fieldSizesPlayed = [];
+            }
+        } catch(e) { /* ignore */ }
+    }
+
+    function saveStats() {
+        try {
+            localStorage.setItem(STATS_KEY, JSON.stringify(playerStats));
+        } catch(e) { /* ignore */ }
+    }
+
+    function trackRoll(d1, d2, isDeadRoll) {
+        if (simulationMode) return;
+        if (currentPlayer !== 1) return;
+
+        playerStats.totalRolls++;
+        const sum = d1 + d2;
+        if (sum >= 2 && sum <= 12) playerStats.sumDistribution[sum]++;
+
+        if (d1 === d2) {
+            playerStats.doublesRolled++;
+            _consecutiveDoubles++;
+            if (_consecutiveDoubles > playerStats.maxConsecutiveDoubles) {
+                playerStats.maxConsecutiveDoubles = _consecutiveDoubles;
+            }
+        } else {
+            _consecutiveDoubles = 0;
+        }
+
+        if (isDeadRoll) {
+            playerStats.deadRolls++;
+            _consecutiveDeadRolls++;
+            if (_consecutiveDeadRolls > playerStats.maxConsecutiveDeadRolls) {
+                playerStats.maxConsecutiveDeadRolls = _consecutiveDeadRolls;
+            }
+        } else {
+            _consecutiveDeadRolls = 0;
+        }
+
+        checkAchievements();
+        saveStats();
+    }
+
+    function trackMove(cells, captureType) {
+        if (simulationMode) return;
+        if (currentPlayer !== 1) return;
+
+        playerStats.totalCellsCaptured += cells;
+        if (captureType === 'enemy') {
+            playerStats.enemyCellsCaptured += cells;
+        } else {
+            playerStats.neutralCellsCaptured += cells;
+        }
+        if (cells > playerStats.biggestCapture) {
+            playerStats.biggestCapture = cells;
+        }
+        checkAchievements();
+        saveStats();
+    }
+
+    function trackElimination(eliminatedPlayer, killerPlayer) {
+        if (simulationMode) return;
+        if (killerPlayer === 1) {
+            playerStats.eliminatedOpponents++;
+            playerStats.eliminationsByMe[eliminatedPlayer] = (playerStats.eliminationsByMe[eliminatedPlayer] || 0) + 1;
+            currentGameTracking.eliminationsByMe++;
+        }
+        if (eliminatedPlayer === 1) {
+            playerStats.timesEliminated++;
+            playerStats.eliminationsOfMe[killerPlayer] = (playerStats.eliminationsOfMe[killerPlayer] || 0) + 1;
+        }
+        checkAchievements();
+        saveStats();
+    }
+
+    function getMyTerritoryPercent() {
+        const totalCells = COLS * ROWS;
+        if (totalCells === 0) return 0;
+        let mine = 0;
+        for (let r of rectangles) if (r.owner === 1) mine += r.w * r.h;
+        return (mine / totalCells) * 100;
+    }
+
+    function trackGameEnd(reason, winnerPlayer) {
+        if (currentGameTracking.countedAsFinished) return;
+        currentGameTracking.countedAsFinished = true;
+
+        const myPercent = getMyTerritoryPercent();
+        if (myPercent > playerStats.biggestTerritoryPercent) {
+            playerStats.biggestTerritoryPercent = myPercent;
+        }
+
+        if (simulationMode) {
+            playerStats.simulationsWatched++;
+            if (!playerStats.fieldSizesPlayed.includes(currentGameTracking.fieldSizeKey)) {
+                playerStats.fieldSizesPlayed.push(currentGameTracking.fieldSizeKey);
+            }
+            checkAchievements();
+            saveStats();
+            return;
+        }
+
+        playerStats.gamesPlayed++;
+        playerStats.totalTimeSeconds += timerSeconds;
+        playerStats.totalTurns += turnCounter;
+
+        const pc = currentGameTracking.startPlayerCount;
+        playerStats.gamesByPlayerCount[pc] = (playerStats.gamesByPlayerCount[pc] || 0) + 1;
+
+        const isStandard = (COLS === 39 && ROWS === 28);
+        if (!isStandard) playerStats.customFieldGames++;
+        if (!playerStats.fieldSizesPlayed.includes(currentGameTracking.fieldSizeKey)) {
+            playerStats.fieldSizesPlayed.push(currentGameTracking.fieldSizeKey);
+        }
+
+        if (currentGameTracking.colorMode !== 'normal') {
+            playerStats.colorblindGames++;
+        }
+
+        const didWin = (winnerPlayer === 1);
+
+        // Вспомогательные поля для достижений
+        playerStats._lastGameWon = didWin;
+        playerStats._lastGameTurns = turnCounter;
+        playerStats._lastGameTime = timerSeconds;
+
+        if (didWin) {
+            playerStats.wins++;
+            playerStats.winsByPlayerCount[pc] = (playerStats.winsByPlayerCount[pc] || 0) + 1;
+            playerStats.currentWinStreak++;
+            playerStats.currentLossStreak = 0;
+            if (playerStats.currentWinStreak > playerStats.bestWinStreak) {
+                playerStats.bestWinStreak = playerStats.currentWinStreak;
+            }
+
+            if (reason === 'dominance') playerStats.winsByDominance++;
+            else if (reason === 'elimination') playerStats.winsByElimination++;
+            else if (reason === 'full') playerStats.winsByFull++;
+
+            if (currentGameTracking.startStartSize === 6) {
+                playerStats.bigStartWins++;
+            }
+            if (botMode && !simulationMode) {
+                playerStats._botHunterWins = (playerStats._botHunterWins || 0) + 1;
+            }
+            if (!isStandard) {
+                playerStats._customWins = (playerStats._customWins || 0) + 1;
+            }
+        } else {
+            playerStats.losses++;
+            playerStats.currentLossStreak++;
+            playerStats.currentWinStreak = 0;
+        }
+
+        checkAchievements();
+        saveStats();
+    }
+
+    // ---- Определения достижений ----
+    const ACHIEVEMENTS = [
+        { id: 'first_game', cat: 'first_steps', icon: '🎮',
+          name: () => tt('Первая партия', 'First game'),
+          desc: () => tt('Завершить любую игру', 'Complete any game'),
+          check: (s) => ({ cur: Math.min(s.gamesPlayed, 1), max: 1 }) },
+        { id: 'first_blood', cat: 'first_steps', icon: '🩸',
+          name: () => tt('Первая кровь', 'First blood'),
+          desc: () => tt('Устранить первого противника', 'Eliminate your first opponent'),
+          check: (s) => ({ cur: Math.min(s.eliminatedOpponents, 1), max: 1 }) },
+        { id: 'first_win', cat: 'first_steps', icon: '🏅',
+          name: () => tt('Первая победа', 'First victory'),
+          desc: () => tt('Выиграть любую партию', 'Win any game'),
+          check: (s) => ({ cur: Math.min(s.wins, 1), max: 1 }) },
+        { id: 'first_double', cat: 'first_steps', icon: '🎲',
+          name: () => tt('Первый дубль', 'First double'),
+          desc: () => tt('Выбросить одинаковые кубики', 'Roll matching dice'),
+          check: (s) => ({ cur: Math.min(s.doublesRolled, 1), max: 1 }) },
+
+        { id: 'veteran_10', cat: 'regularity', icon: '⚔️',
+          name: () => tt('Ветеран', 'Veteran'),
+          desc: () => tt('Сыграть 10 партий', 'Play 10 games'),
+          check: (s) => ({ cur: s.gamesPlayed, max: 10 }) },
+        { id: 'regular_50', cat: 'regularity', icon: '🏰',
+          name: () => tt('Завсегдатай', 'Regular'),
+          desc: () => tt('Сыграть 50 партий', 'Play 50 games'),
+          check: (s) => ({ cur: s.gamesPlayed, max: 50 }) },
+        { id: 'centurion_100', cat: 'regularity', icon: '💯',
+          name: () => tt('Сотник', 'Centurion'),
+          desc: () => tt('Сыграть 100 партий', 'Play 100 games'),
+          check: (s) => ({ cur: s.gamesPlayed, max: 100 }) },
+        { id: 'winner_10', cat: 'regularity', icon: '🏆',
+          name: () => tt('Победитель', 'Winner'),
+          desc: () => tt('Одержать 10 побед', 'Win 10 games'),
+          check: (s) => ({ cur: s.wins, max: 10 }) },
+        { id: 'winner_50', cat: 'regularity', icon: '👑',
+          name: () => tt('Властелин', 'Overlord'),
+          desc: () => tt('Одержать 50 побед', 'Win 50 games'),
+          check: (s) => ({ cur: s.wins, max: 50 }) },
+        { id: 'winner_100', cat: 'regularity', icon: '🌟',
+          name: () => tt('Легенда', 'Legend'),
+          desc: () => tt('Одержать 100 побед', 'Win 100 games'),
+          check: (s) => ({ cur: s.wins, max: 100 }) },
+        { id: 'streak_3', cat: 'regularity', icon: '🔥',
+          name: () => tt('Серия из 3', 'Streak of 3'),
+          desc: () => tt('3 победы подряд', 'Win 3 in a row'),
+          check: (s) => ({ cur: s.bestWinStreak, max: 3 }) },
+        { id: 'streak_5', cat: 'regularity', icon: '⚡',
+          name: () => tt('Серия из 5', 'Streak of 5'),
+          desc: () => tt('5 побед подряд', 'Win 5 in a row'),
+          check: (s) => ({ cur: s.bestWinStreak, max: 5 }) },
+
+        { id: 'max_capture', cat: 'capture', icon: '🟩',
+          name: () => tt('Максимальный захват', 'Max capture'),
+          desc: () => tt('Занять прямоугольник 6×6', 'Capture a 6×6 rectangle'),
+          check: (s) => ({ cur: s.biggestCapture, max: 36 }) },
+        { id: 'neutralizer', cat: 'capture', icon: '⬜',
+          name: () => tt('Нейтрализатор', 'Neutralizer'),
+          desc: () => tt('Захватить 100 нейтральных клеток', 'Capture 100 neutral cells'),
+          check: (s) => ({ cur: s.neutralCellsCaptured, max: 100 }) },
+        { id: 'cleanup', cat: 'capture', icon: '🌍',
+          name: () => tt('Зачистка', 'Cleanup'),
+          desc: () => tt('Захватить 10 000 клеток за всё время', 'Capture 10,000 cells overall'),
+          check: (s) => ({ cur: s.totalCellsCaptured, max: 10000 }) },
+        { id: 'dominator', cat: 'capture', icon: '🎯',
+          name: () => tt('Доминатор', 'Dominator'),
+          desc: () => tt('Победить по правилу 2/3 поля', 'Win by controlling 2/3'),
+          check: (s) => ({ cur: Math.min(s.winsByDominance, 1), max: 1 }) },
+        { id: 'annihilator', cat: 'capture', icon: '💀',
+          name: () => tt('Аннигилятор', 'Annihilator'),
+          desc: () => tt('Победить, устранив всех', 'Win by eliminating all'),
+          check: (s) => ({ cur: Math.min(s.winsByElimination, 1), max: 1 }) },
+        { id: 'total_control', cat: 'capture', icon: '🏁',
+          name: () => tt('Тотальный контроль', 'Total control'),
+          desc: () => tt('Победить, полностью заполнив поле', 'Win by filling the board'),
+          check: (s) => ({ cur: Math.min(s.winsByFull, 1), max: 1 }) },
+
+        { id: 'snake_eyes', cat: 'dice', icon: '👀',
+          name: () => tt('Змеиные глаза', 'Snake eyes'),
+          desc: () => tt('Выбросить 1 и 1', 'Roll 1 and 1'),
+          check: (s) => ({ cur: Math.min(s.sumDistribution[2], 1), max: 1 }) },
+        { id: 'double_six', cat: 'dice', icon: '🎰',
+          name: () => tt('Двойная шестёрка', 'Double six'),
+          desc: () => tt('Выбросить 6 и 6', 'Roll 6 and 6'),
+          check: (s) => ({ cur: Math.min(s.sumDistribution[12], 1), max: 1 }) },
+        { id: 'triple_double', cat: 'dice', icon: '🎲',
+          name: () => tt('Трижды подряд', 'Three in a row'),
+          desc: () => tt('Три раза подряд выбросить дубль', 'Roll doubles 3 times in a row'),
+          check: (s) => ({ cur: s.maxConsecutiveDoubles, max: 3 }) },
+        { id: 'sum_collector', cat: 'dice', icon: '🧮',
+          name: () => tt('Коллекционер сумм', 'Sum collector'),
+          desc: () => tt('Выбросить все суммы от 2 до 12', 'Roll every sum from 2 to 12'),
+          check: (s) => {
+              let got = 0;
+              for (let i = 2; i <= 12; i++) if (s.sumDistribution[i] > 0) got++;
+              return { cur: got, max: 11 };
+          } },
+
+        { id: 'blitz', cat: 'situational', icon: '💨',
+          name: () => tt('Блиц', 'Blitz'),
+          desc: () => tt('Победить менее чем за 75 ходов', 'Win in fewer than 75 turns'),
+          check: (s) => ({ cur: (s._lastGameWon && s._lastGameTurns <= 75) ? 1 : 0, max: 1 }) },
+        { id: 'speedrun', cat: 'situational', icon: '⏱️',
+          name: () => tt('Скороход', 'Speedrun'),
+          desc: () => tt('Победить быстрее чем за 5 минут', 'Win in under 5 minutes'),
+          check: (s) => ({ cur: (s._lastGameWon && s._lastGameTime <= 300) ? 1 : 0, max: 1 }) },
+        { id: 'bot_hunter', cat: 'situational', icon: '🤖',
+          name: () => tt('Охотник на ботов', 'Bot hunter'),
+          desc: () => tt('Победить в партии, где все соперники боты', 'Win when all opponents are bots'),
+          check: (s) => ({ cur: Math.min(s._botHunterWins || 0, 1), max: 1 }) },
+        { id: 'customizer', cat: 'situational', icon: '🔧',
+          name: () => tt('Кастомщик', 'Customizer'),
+          desc: () => tt('Победить на нестандартном поле', 'Win on a non-standard field'),
+          check: (s) => ({ cur: Math.min(s._customWins || 0, 1), max: 1 }) },
+        { id: 'colorblind_friendly', cat: 'situational', icon: '🌈',
+          name: () => tt('Цветотерапия', 'Color therapy'),
+          desc: () => tt('Сыграть с включённым режимом цветовой коррекции', 'Play with a colorblind mode active'),
+          check: (s) => ({ cur: Math.min(s.colorblindGames, 1), max: 1 }) }
+    ];
+
+    const CATEGORIES = [
+        { key: 'first_steps', titleRu: '🥉 Первые шаги', titleEn: '🥉 First steps' },
+        { key: 'regularity', titleRu: '🥈 Регулярность', titleEn: '🥈 Regularity' },
+        { key: 'capture', titleRu: '🥇 Мастерство захвата', titleEn: '🥇 Capture mastery' },
+        { key: 'dice', titleRu: '🎲 Кубиковая удача', titleEn: '🎲 Dice luck' },
+        { key: 'situational', titleRu: '🏆 Ситуативные', titleEn: '🏆 Situational' }
+    ];
+
+    function checkAchievements() {
+        let newlyUnlocked = [];
+        for (const ach of ACHIEVEMENTS) {
+            if (playerStats.achievements[ach.id]) continue;
+            let res;
+            try { res = ach.check(playerStats); } catch(e) { res = { cur: 0, max: 1 }; }
+            if (res && res.cur >= res.max) {
+                playerStats.achievements[ach.id] = Date.now();
+                newlyUnlocked.push(ach);
+            }
+        }
+        if (newlyUnlocked.length > 0) {
+            saveStats();
+        }
+        return newlyUnlocked;
+    }
+
+    function getAchievementProgress(ach) {
+        try {
+            const res = ach.check(playerStats);
+            if (!res) return { cur: 0, max: 1, unlocked: false };
+            return { cur: res.cur, max: res.max, unlocked: res.cur >= res.max };
+        } catch(e) {
+            return { cur: 0, max: 1, unlocked: false };
+        }
+    }
+
+    function formatPlayTime(sec) {
+        const h = Math.floor(sec / 3600);
+        const m = Math.floor((sec % 3600) / 60);
+        if (h > 0) return `${h}${tt('ч','h')} ${m}${tt('м','m')}`;
+        return `${m}${tt('м','m')}`;
+    }
+
+    function mostFrequentSum() {
+        let best = 0, bestCount = 0;
+        for (let i = 2; i <= 12; i++) {
+            if (playerStats.sumDistribution[i] > bestCount) {
+                bestCount = playerStats.sumDistribution[i];
+                best = i;
+            }
+        }
+        return best === 0 ? null : { sum: best, count: bestCount };
+    }
+
+    function favoriteTarget() {
+        let best = 0, bestCount = 0;
+        for (let p = 1; p <= 4; p++) {
+            if (playerStats.eliminationsByMe[p] > bestCount) {
+                bestCount = playerStats.eliminationsByMe[p];
+                best = p;
+            }
+        }
+        return best === 0 ? null : { player: best, count: bestCount };
+    }
+
+    function worstEnemy() {
+        let best = 0, bestCount = 0;
+        for (let p = 1; p <= 4; p++) {
+            if (playerStats.eliminationsOfMe[p] > bestCount) {
+                bestCount = playerStats.eliminationsOfMe[p];
+                best = p;
+            }
+        }
+        return best === 0 ? null : { player: best, count: bestCount };
+    }
+
+    function statRow(label, value) {
+        return `<div class="stat-row"><span class="stat-row-label">${label}</span><span class="stat-row-value">${value}</span></div>`;
+    }
+
+    function renderStatsTab() {
+        const s = playerStats;
+        const total = s.wins + s.losses;
+        const winrate = total > 0 ? ((s.wins / total) * 100).toFixed(1) : '0.0';
+        const favTarget = favoriteTarget();
+        const worst = worstEnemy();
+        const favSum = mostFrequentSum();
+
+        let html = '';
+        html += `<div class="stat-section"><h4>📈 ${tt('Общее','General')}</h4>`;
+        html += statRow(tt('Игр сыграно','Games played'), s.gamesPlayed);
+        html += statRow(tt('Побед','Wins'), s.wins);
+        html += statRow(tt('Поражений','Losses'), s.losses);
+        html += statRow(tt('Винрейт','Winrate'), winrate + '%');
+        html += statRow(tt('Текущая серия побед','Current win streak'), s.currentWinStreak);
+        html += statRow(tt('Лучшая серия','Best win streak'), s.bestWinStreak);
+        html += statRow(tt('Общее время в игре','Total playtime'), formatPlayTime(s.totalTimeSeconds));
+        html += statRow(tt('Общее число ходов','Total turns'), s.totalTurns);
+        html += `</div>`;
+
+        html += `<div class="stat-section"><h4>🗺️ ${tt('Территория','Territory')}</h4>`;
+        html += statRow(tt('Всего захвачено клеток','Total cells captured'), s.totalCellsCaptured);
+        html += statRow(tt('Захвачено нейтралов','Neutral cells'), s.neutralCellsCaptured);
+        html += statRow(tt('Захвачено у врагов','Enemy cells'), s.enemyCellsCaptured);
+        html += statRow(tt('Крупнейший захват','Biggest capture'), s.biggestCapture);
+        html += statRow(tt('Рекорд территории','Best territory'), s.biggestTerritoryPercent.toFixed(1) + '%');
+        html += `</div>`;
+
+        html += `<div class="stat-section"><h4>🎲 ${tt('Кубики','Dice')}</h4>`;
+        html += statRow(tt('Всего бросков','Total rolls'), s.totalRolls);
+        html += statRow(tt('Дублей выпало','Doubles rolled'), s.doublesRolled);
+        html += statRow(tt('Пропущенных ходов','Dead rolls'), s.deadRolls);
+        html += statRow(tt('Максимум дублей подряд','Max doubles in a row'), s.maxConsecutiveDoubles);
+        html += statRow(tt('Максимум пропусков подряд','Max dead rolls in a row'), s.maxConsecutiveDeadRolls);
+        html += statRow(tt('Самая частая сумма','Most frequent sum'),
+            favSum ? `${favSum.sum} (${favSum.count}×)` : '—');
+        html += `</div>`;
+
+        html += `<div class="stat-section"><h4>⚔️ ${tt('Устранения','Eliminations')}</h4>`;
+        html += statRow(tt('Устранено противников','Opponents eliminated'), s.eliminatedOpponents);
+        html += statRow(tt('Сам был устранён','Times eliminated'), s.timesEliminated);
+        html += statRow(tt('Любимая жертва','Favorite target'),
+            favTarget ? `${getPlayerName(favTarget.player)} (${favTarget.count}×)` : '—');
+        html += statRow(tt('Злейший враг','Nemesis'),
+            worst ? `${getPlayerName(worst.player)} (${worst.count}×)` : '—');
+        html += `</div>`;
+
+        html += `<div class="stat-section"><h4>🏁 ${tt('Типы побед','Victory types')}</h4>`;
+        html += statRow(tt('По доминированию (2/3)','By dominance (2/3)'), s.winsByDominance);
+        html += statRow(tt('По устранению всех','By elimination'), s.winsByElimination);
+        html += statRow(tt('По заполнению поля','By full board'), s.winsByFull);
+        html += statRow(tt('Просмотрено симуляций','Simulations watched'), s.simulationsWatched);
+        html += statRow(tt('Побед на кастомном поле','Custom field wins'), s._customWins || 0);
+        html += `</div>`;
+
+        html += `<div class="progress-summary">${tt('Сыграно с 2 игроками','Games with 2 players')}: <strong>${s.gamesByPlayerCount[2] || 0}</strong> · ${tt('с 4 игроками','with 4')}: <strong>${s.gamesByPlayerCount[4] || 0}</strong></div>`;
+
+        progressBody.innerHTML = html;
+    }
+
+    function renderAchievementsTab() {
+        let totalUnlocked = 0;
+        let totalAch = ACHIEVEMENTS.length;
+
+        for (const ach of ACHIEVEMENTS) {
+            if (playerStats.achievements[ach.id]) totalUnlocked++;
+        }
+
+        let html = '';
+        for (const cat of CATEGORIES) {
+            const catAchs = ACHIEVEMENTS.filter(a => a.cat === cat.key);
+            let catUnlocked = 0;
+            catAchs.forEach(a => { if (playerStats.achievements[a.id]) catUnlocked++; });
+
+            html += `<div class="stat-section"><h4>${tt(cat.titleRu, cat.titleEn)}<span class="ach-counter-badge">${catUnlocked} / ${catAchs.length}</span></h4>`;
+            html += `<div class="ach-grid">`;
+            for (const ach of catAchs) {
+                const unlocked = !!playerStats.achievements[ach.id];
+                const prog = getAchievementProgress(ach);
+                const showProgress = !unlocked && prog.max > 1;
+                const pct = prog.max > 0 ? Math.min(100, (prog.cur / prog.max) * 100) : 0;
+
+                html += `<div class="ach-card ${unlocked ? '' : 'locked'}">`;
+                html += `<div class="ach-icon">${ach.icon}</div>`;
+                html += `<div class="ach-info">`;
+                html += `<div class="ach-name">${ach.name()}</div>`;
+                html += `<div class="ach-desc">${ach.desc()}</div>`;
+                if (showProgress) {
+                    html += `<div class="ach-progress"><div class="ach-progress-fill" style="width:${pct}%"></div></div>`;
+                    html += `<div class="ach-progress-text">${prog.cur} / ${prog.max}</div>`;
+                }
+                html += `</div></div>`;
+            }
+            html += `</div></div>`;
+        }
+
+        html += `<div class="progress-summary">${tt('🔓 Разблокировано','🔓 Unlocked')} <strong>${totalUnlocked} ${tt('из','of')} ${totalAch}</strong></div>`;
+
+        progressBody.innerHTML = html;
+    }
+
+    let currentProgressTab = 'stats';
+
+    function renderProgressModal() {
+        if (currentProgressTab === 'stats') {
+            renderStatsTab();
+        } else {
+            renderAchievementsTab();
+        }
+        progressTabs.forEach(t => {
+            t.classList.toggle('active', t.dataset.tab === currentProgressTab);
+        });
+    }
+
+    function openProgressModal(tab = 'stats') {
+        currentProgressTab = tab;
+        renderProgressModal();
+        progressModal.style.display = 'flex';
+        if (progressBody) progressBody.scrollTop = 0;
+    }
+
+    function closeProgressModal() {
+        progressModal.style.display = 'none';
+    }
+
+    progressTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            currentProgressTab = tab.dataset.tab;
+            renderProgressModal();
+            if (progressBody) progressBody.scrollTop = 0;
+        });
+    });
+
+    if (progressButton) progressButton.addEventListener('click', () => openProgressModal('stats'));
+    if (mobileProgressBtn) mobileProgressBtn.addEventListener('click', () => { closeDrawer(); openProgressModal('stats'); });
+    if (closeProgressModalSpan) closeProgressModalSpan.addEventListener('click', closeProgressModal);
+    window.addEventListener('click', (e) => { if (e.target === progressModal) closeProgressModal(); });
+
+    // ========================================================================
+    // ======================= КОНЕЦ БЛОКА ПРОГРЕССА ===========================
+    // ========================================================================
 
     // ---------------------- Функции подтверждения --------------------------
     function showConfirmDialog(title, message, onConfirm, actionType) {
@@ -333,7 +913,7 @@
         const secs = seconds % 60;
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     }
-    function updateTimerDisplay() { 
+    function updateTimerDisplay() {
         const timeStr = formatTime(timerSeconds);
         if(timerDisplay) timerDisplay.textContent = timeStr;
         if(mobileTimerDisplay) mobileTimerDisplay.textContent = timeStr;
@@ -357,7 +937,7 @@
         const neutralCells = getNeutralCellCount();
         const totalCells = COLS * ROWS;
         const percentOf = (cells) => totalCells > 0 ? ((cells / totalCells) * 100).toFixed(1) : '0.0';
-    
+
         let html = '';
         const playersToShow = PLAYER_COUNT === 2 ? [1,2] : [1,2,3,4];
         for(let p of playersToShow) {
@@ -375,7 +955,7 @@
         }
         html += `<div class="neutral-score-card"><div class="neutral-badge" style="background:#aaaaaa;"></div><div class="neutral-info"><div class="neutral-name">${isRussian ? "Нейтральные" : "Neutral"}</div><div class="neutral-score">${neutralCells} | ${percentOf(neutralCells)}%</div></div></div>`;
         if(sideScorePanel) sideScorePanel.innerHTML = html;
-    
+
         if(mobileScorePanel) {
             let mobileHtml = '';
             for(let p of playersToShow) {
@@ -509,6 +1089,7 @@
         eliminatedOrder.push(eliminated);
         activePlayers = activePlayers.filter(p => p !== eliminated);
         redistributeTerritory(eliminated, killer);
+        trackElimination(eliminated, killer);
         updateUI(); drawBoard();
         if (activePlayers.length === 1) endGame('elimination');
     }
@@ -571,6 +1152,10 @@
             players.sort((a,b) => finalScores[b] - finalScores[a]);
             for (let i = 0; i < players.length; i++) rankings.push({ player: players[i], place: i+1 });
         }
+        // Обновляем статистику ДО показа модалки
+        try {
+            trackGameEnd(reason, rankings[0].player);
+        } catch(e) { /* ignore */ }
         showGameResultsModal(rankings, reason, finalScores, totalTurns, gameTime, neutralCount);
         updateUI(); drawBoard();
     }
@@ -583,20 +1168,38 @@
         if (!isValidSize(w, h, diceN, diceM)) { updateUI(); return false; }
         if(x < 0 || y < 0 || x+w > COLS || y+h > ROWS) { updateUI(); return false; }
         let success = false;
+        let captureType = 'neutral';
+        let capturedCells = 0;
         if(isAreaFree(x, y, w, h)) {
-            if(isAdjacentToPlayer({ x, y, w, h, owner: null }, currentPlayer)) { rectangles.push({ owner: currentPlayer, x, y, w, h }); success = true; }
+            if(isAdjacentToPlayer({ x, y, w, h, owner: null }, currentPlayer)) {
+                rectangles.push({ owner: currentPlayer, x, y, w, h });
+                success = true;
+                captureType = 'neutral';
+                capturedCells = w * h;
+            }
             else { updateUI(); return false; }
         } else {
             const targetRect = getExactRectangle(x, y, w, h);
             if(targetRect && targetRect.owner !== currentPlayer) {
-                if(isAdjacentToPlayer(targetRect, currentPlayer)) { targetRect.owner = currentPlayer; success = true; }
+                if(isAdjacentToPlayer(targetRect, currentPlayer)) {
+                    captureType = (targetRect.owner === null) ? 'neutral' : 'enemy';
+                    targetRect.owner = currentPlayer;
+                    success = true;
+                    capturedCells = w * h;
+                }
                 else { updateUI(); return false; }
             } else if(targetRect && targetRect.owner === null) {
-                if(isAdjacentToPlayer(targetRect, currentPlayer)) { targetRect.owner = currentPlayer; success = true; }
+                if(isAdjacentToPlayer(targetRect, currentPlayer)) {
+                    targetRect.owner = currentPlayer;
+                    success = true;
+                    captureType = 'neutral';
+                    capturedCells = w * h;
+                }
                 else { updateUI(); return false; }
             } else { updateUI(); return false; }
         }
         if (success) {
+            trackMove(capturedCells, captureType);
             const eliminated = coversStartCell(x, y, w, h, currentPlayer);
             if (eliminated !== null && activePlayers.includes(eliminated)) eliminatePlayer(eliminated, currentPlayer);
             return true;
@@ -655,7 +1258,7 @@
         isBotThinking = false;
     }
     async function botTurn() {
-        const myGeneration = currentGameGeneration; // запоминаем поколение на момент запуска
+        const myGeneration = currentGameGeneration;
         if (!gameActive || isBotThinking) return;
         const isBot = (botMode && botPlayers.includes(currentPlayer)) || simulationMode;
         if (!isBot) return;
@@ -726,6 +1329,8 @@
         waitingForRoll = false;
         const moves = getAvailableMoves(currentPlayer, diceN, diceM);
         availableMoves = moves;
+        const isDeadRoll = (moves.length === 0);
+        trackRoll(diceN, diceM, isDeadRoll);
         if (moves.length === 0) {
             updateUI(); drawBoard();
             finishMove();
@@ -1062,15 +1667,12 @@
     closeHelpBtn.addEventListener('click', closeHelpModal);
     window.addEventListener('click', (e) => { if (e.target === helpModal) closeHelpModal(); });
 
-    // ---------------------- Исправленная newGame с поколением ------------------
+    // ---------------------- Новая игра ------------------
     function newGame() {
-        // Останавливаем всё, что могло работать в старой игре
         stopTimer();
         clearPendingBot();
-        // Увеличиваем глобальное поколение игры, чтобы старые асинхронные боты вышли
         gameGeneration++;
         currentGameGeneration = gameGeneration;
-        // Теперь пересоздаём состояние
         timerSeconds = 0;
         updateTimerDisplay();
         rectangles = [];
@@ -1088,6 +1690,19 @@
         eliminatedOrder = [];
         gameActive = true;
         availableMoves = [];
+
+        // Сбрасываем per-game tracking
+        currentGameTracking = {
+            eliminationsByMe: 0,
+            startPlayerCount: PLAYER_COUNT,
+            startStartSize: START_SIZE,
+            fieldSizeKey: `${COLS}x${ROWS}`,
+            colorMode: getSelectedColorMode(),
+            countedAsFinished: false
+        };
+        _consecutiveDeadRolls = 0;
+        _consecutiveDoubles = 0;
+
         updateUI();
         drawBoard();
         startTimer();
@@ -1143,6 +1758,9 @@
             document.body.classList.remove('mobile-device');
         }
 
+        // Загружаем статистику игрока
+        loadStats();
+
         const loaded = loadGameStateFromLocalStorage();
         if (!loaded) updateGlobalFromDOM();
         else updateGlobalFromDOM();
@@ -1177,7 +1795,24 @@
                 else if (e.code === 'Escape') { e.preventDefault(); closeConfirmDialog(); }
                 return;
             }
+            // Progress modal: навигация по вкладкам и закрытие
+            if (progressModal.style.display === 'flex') {
+                if (e.code === 'Escape') { e.preventDefault(); closeProgressModal(); return; }
+                if (e.code === 'ArrowLeft') { e.preventDefault(); currentProgressTab = 'stats'; renderProgressModal(); if (progressBody) progressBody.scrollTop = 0; return; }
+                if (e.code === 'ArrowRight') { e.preventDefault(); currentProgressTab = 'achievements'; renderProgressModal(); if (progressBody) progressBody.scrollTop = 0; return; }
+                if (e.code === 'ArrowDown') { e.preventDefault(); if (progressBody) progressBody.scrollTop += 60; return; }
+                if (e.code === 'ArrowUp') { e.preventDefault(); if (progressBody) progressBody.scrollTop -= 60; return; }
+                // Блокируем остальные игровые клавиши, пока открыт прогресс
+                return;
+            }
             if (simulationMode) return;
+            // Горячая клавиша C — открыть окно прогресса
+            if (e.code === 'KeyC') {
+                e.preventDefault();
+                if (progressModal.style.display === 'flex') closeProgressModal();
+                else openProgressModal('stats');
+                return;
+            }
             if (e.code === 'KeyN') { e.preventDefault(); newGameWithConfirm(); return; }
             if (e.code === 'Enter' && gameActive) {
                 if (waitingForRoll && !(botMode && botPlayers.includes(currentPlayer))) { rollDice(); e.preventDefault(); return; }
