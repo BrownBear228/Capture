@@ -30,6 +30,7 @@
                     <button id="mobileSkipBtn" class="mobile-skip-btn">⏭ Skip turn</button>
                     <button id="mobileNewGameBtn" class="mobile-newgame-btn">🔄 New game</button>
                     <button id="mobileSettingsBtn" class="mobile-settings-btn">⚙️ Settings</button>
+                    <button id="mobileProgressBtn" class="mobile-progress-btn">🏆 Progress</button>
                     <button id="mobileHelpBtn" class="mobile-help-btn">❓ Help</button>
                     <button id="mobileLangBtn" class="mobile-lang-btn">🌐 RU</button>
                 </div>
@@ -41,8 +42,9 @@
         <div class="game-top-row">
             <div class="top-left-buttons">
                 <div class="round-button" id="settingsIcon">⚙️</div>
-                <div class="round-button" id="helpButton">❓</div>
                 <div class="round-button" id="langButton">RU</div>
+                <div class="round-button" id="progressButton">🏆</div>
+                <div class="round-button" id="helpButton">❓</div>
             </div>
             <div class="left-panel">
                 <div class="score-panel" id="sideScorePanel"></div>
@@ -63,7 +65,7 @@
     </div>
 </div>
 
-<!-- Модальные окна (настройки, справка, результат, подтверждение) -->
+<!-- Модальные окна (настройки, справка, прогресс, результат, подтверждение) -->
 <div id="settingsModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
@@ -159,6 +161,7 @@
                         <li><kbd>W/A/S/D</kbd> or arrows — move</li>
                         <li><kbd>Esc</kbd> — settings</li>
                         <li><kbd>Q</kbd> — manual</li>
+                        <li><kbd>C</kbd> — achievements &amp; stats</li>
                         <li><kbd>N</kbd> — new game</li>
                         <li><kbd>L</kbd> — switch language</li>
                     </ul>
@@ -200,6 +203,20 @@
         <div class="modal-footer">
             <button id="closeHelpBtn">Close</button>
         </div>
+    </div>
+</div>
+
+<div id="progressModal" class="modal progress-modal">
+    <div class="modal-content progress-modal-content">
+        <div class="modal-header">
+            <h3>🏆 Progress</h3>
+            <span class="close-progress-modal">&times;</span>
+        </div>
+        <div class="progress-tabs">
+            <div class="progress-tab active" data-tab="stats">📊 Statistics</div>
+            <div class="progress-tab" data-tab="achievements">🏆 Achievements</div>
+        </div>
+        <div class="modal-body progress-body" id="progressBody"></div>
     </div>
 </div>
 
